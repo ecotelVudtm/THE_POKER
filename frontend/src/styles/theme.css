@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Semantic DODJONG-style Theme Tokens — "Thần Bài Đời Thường"
+ * Warm tea-house wood, classic green felt, amber tabletop lamp, jade accents.
+ * RGB triplets enable Tailwind alpha modifiers (e.g. bg-surface-panel/90).
+ */
+:root {
+  /* Surfaces */
+  --surface-canvas: 28 20 15;
+  --surface-panel: 41 30 22;
+  --surface-elevated: 58 43 32;
+  --surface-felt: 22 92 62;
+  --surface-wood: 109 67 39;
+
+  /* Content / Typography */
+  --content-primary: 252 246 235;
+  --content-secondary: 222 206 184;
+  --content-muted: 168 148 124;
+  --content-inverse: 28 20 15;
+
+  /* Borders */
+  --border-subtle: 94 72 54;
+  --border-gold: 232 185 88;
+
+  /* Accents */
+  --accent-gold: 235 186 84;
+  --accent-via: 56 189 248;
+  --accent-jade: 34 197 132;
+  --accent-amber: 245 158 11;
+
+  /* Status */
+  --status-success: 34 197 94;
+  --status-warning: 245 158 11;
+  --status-danger: 239 68 68;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+}
+
+/* Subtle scrollbar for toast feeds */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(var(--surface-canvas) / 0.4);
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-subtle) / 0.8);
+  border-radius: 9999px;
+}
