@@ -75,6 +75,7 @@ export class SocketGateway {
         async (payload: {
           roomName?: string;
           botCount?: number;
+          maxBuyIn?: number;
           smallBlind?: number;
           bigBlind?: number;
           accountId?: string;
@@ -86,6 +87,7 @@ export class SocketGateway {
               socketId: socket.id,
               roomName: payload?.roomName,
               botCount: payload?.botCount,
+              maxBuyIn: payload?.maxBuyIn,
               smallBlind: payload?.smallBlind,
               bigBlind: payload?.bigBlind,
             });

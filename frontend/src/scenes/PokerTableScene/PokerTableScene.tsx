@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -141,6 +141,8 @@ export interface PokerTableSceneProps {
   me: PublicPlayerView | null;
   onUseItem: (item: ItemType) => void;
   idleShowcase?: boolean;
+  /** Pauses the WebGL render loop when covered by a full-screen overlay (e.g. Shop) */
+  paused?: boolean;
 }
 
 const OPPONENT_SLOTS: {
@@ -172,7 +174,7 @@ function CameraRig({ idleShowcase }: { idleShowcase?: boolean }) {
   return null;
 }
 
-function VoxelPokerTable() {
+const VoxelPokerTable = memo(function VoxelPokerTable() {
   const { woodGeo, feltGeo, railGeo } = useMemo(() => getTableGeometries(), []);
   const woodTex = useMemo(() => getWoodTexture(), []);
   const feltTex = useMemo(() => getFeltTexture(), []);
@@ -236,13 +238,14 @@ function VoxelPokerTable() {
       </mesh>
     </group>
   );
-}
+});
 
 export function PokerTableScene({
   room,
   me,
   onUseItem,
   idleShowcase = false,
+  paused = false,
 }: PokerTableSceneProps) {
   const opponents = useMemo(() => {
     if (!room) return [];
@@ -293,8 +296,9 @@ export function PokerTableScene({
     <div className="h-full w-full">
       <Canvas
         shadows
-        dpr={[1, 1.75]}
-        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        frameloop={paused ? 'never' : 'always'}
+        dpr={[1, 1.5]}
+        gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
         camera={{ position: [0, 7.5, 8.85], fov: 42, near: 0.5, far: 65 }}
         onCreated={({ camera }) => {
           camera.lookAt(0, 0, 0.55);

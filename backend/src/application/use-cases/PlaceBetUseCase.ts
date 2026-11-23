@@ -405,7 +405,10 @@ export class PlaceBetUseCase {
       if (player.isBot) continue;
       const account = await this.accountRepo.findById(player.accountId);
       if (!account) continue;
-      account.chips = player.chips;
+      // Apply exact net table delta so reserve chips above room.maxBuyIn are never overwritten!
+      const chipDelta = player.chips - player.lastSyncedChips;
+      account.chips = Math.max(0, account.chips + chipDelta);
+      player.lastSyncedChips = player.chips;
       if (won) {
         account.stats.wins += 1;
         player.matchWins += 1;
@@ -454,7 +457,8 @@ export class PlaceBetUseCase {
             );
           } else {
             player.chips += 500;
-            account.chips = player.chips;
+            player.lastSyncedChips = player.chips;
+            account.chips += 500;
             appendRoomLog(
               room,
               `🎁 ${player.displayName} đạt mốc ${player.matchWins} thắng — thưởng +500 chip!`

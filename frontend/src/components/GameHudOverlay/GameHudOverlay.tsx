@@ -113,6 +113,10 @@ export function GameHudOverlay({
             {PHASE_LABELS[room.phase]} · VÁN {room.handNumber}
           </span>
           <span className="text-border-subtle">|</span>
+          <span className="text-content-secondary">
+            BLIND {room.smallBlind.toLocaleString()}/{room.bigBlind.toLocaleString()}
+          </span>
+          <span className="text-border-subtle">|</span>
           <span className="flex items-center gap-1.5 font-extrabold text-accent-gold">
             <VoxelIcon3D kind="chip" size={16} />
             POT {room.pot.toLocaleString()}

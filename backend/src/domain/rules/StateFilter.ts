@@ -44,6 +44,7 @@ export interface FilteredRoomState {
   hostAccountId: string;
   status: RoomStatus;
   phase: GamePhase;
+  maxBuyIn: number;
   smallBlind: number;
   bigBlind: number;
   maxPlayers: number;
@@ -126,6 +127,7 @@ export function filterRoomStateForViewer(
     hostAccountId: room.hostAccountId,
     status: room.status,
     phase: room.phase,
+    maxBuyIn: room.maxBuyIn,
     smallBlind: room.smallBlind,
     bigBlind: room.bigBlind,
     maxPlayers: room.maxPlayers,
@@ -145,6 +147,6 @@ export function filterRoomStateForViewer(
       filterPlayerForViewer(p, viewerAccountId, room.phase)
     ),
     lastWinners: room.lastWinners,
-    eventLog: room.eventLog,
+    eventLog: room.eventLog.slice(-12),
   };
 }

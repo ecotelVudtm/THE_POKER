@@ -80,7 +80,13 @@ export class StartMatchUseCase {
         }
 
         if (player.chips <= 0) {
-          player.chips = 10000;
+          if (player.isBot) {
+            player.chips = room.maxBuyIn;
+          } else {
+            const acc = await this.accountRepo.findById(player.accountId);
+            player.chips = Math.min(acc?.chips ?? room.maxBuyIn, room.maxBuyIn);
+          }
+          player.lastSyncedChips = player.chips;
         }
       }
     }

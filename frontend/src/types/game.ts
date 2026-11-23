@@ -189,6 +189,7 @@ export interface FilteredRoomState {
   hostAccountId: string;
   status: RoomStatus;
   phase: GamePhase;
+  maxBuyIn: number;
   smallBlind: number;
   bigBlind: number;
   maxPlayers: number;

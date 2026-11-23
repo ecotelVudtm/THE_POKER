@@ -488,13 +488,13 @@ export function GuideBookModal({ open, onClose }: GuideBookModalProps) {
                 {[
                   {
                     icon: 'sleight' as const,
-                    name: 'TRÁO BÀI TAY ÁO · 30 VÍA · 500 CHIP',
+                    name: 'TRÁO BÀI TAY ÁO · 35 VÍA · 500 CHIP',
                     tag: 'TIMING BAR',
                     desc: 'Chọn 1 lá bài tẩy và căn kim vào vùng xanh để tráo lấy lá mới (tăng mạnh vận may theo Bát Hương).',
                   },
                   {
                     icon: 'eagle' as const,
-                    name: 'TÂM NHÃN ĐỌC VỊ · 50 VÍA · 800 CHIP',
+                    name: 'TÂM NHÃN ĐỌC VỊ · 30 VÍA · 800 CHIP',
                     tag: 'BÁM Ô DI CHUYỂN',
                     desc: 'Giữ chuột bám theo ô vuông di chuyển 2.5s để nhìn trộm lá bài chung sắp lật trong 4 giây.',
                   },

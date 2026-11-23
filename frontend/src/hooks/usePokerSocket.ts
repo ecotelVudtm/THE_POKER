@@ -359,14 +359,17 @@ export function usePokerSocket() {
     setAccount(null);
   }, [resetMatchState, setAccount]);
 
-  const createRoom = useCallback((options: { roomName?: string; botCount?: number }) => {
-    const acc = useGameStore.getState().account;
-    lastLogTimestampRef.current = 0;
-    lastHandNumberRef.current = 0;
-    lastCommunityCountRef.current = 0;
-    lastPotRef.current = 0;
-    getSocket().emit('create_room', { ...options, accountId: acc?.id });
-  }, []);
+  const createRoom = useCallback(
+    (options: { roomName?: string; botCount?: number; maxBuyIn?: number }) => {
+      const acc = useGameStore.getState().account;
+      lastLogTimestampRef.current = 0;
+      lastHandNumberRef.current = 0;
+      lastCommunityCountRef.current = 0;
+      lastPotRef.current = 0;
+      getSocket().emit('create_room', { ...options, accountId: acc?.id });
+    },
+    []
+  );
 
   const joinRoom = useCallback((roomId: string) => {
     const acc = useGameStore.getState().account;

@@ -41,7 +41,7 @@ export interface SkillDefinition {
 export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
   SLEIGHT_OF_HAND: {
     type: 'SLEIGHT_OF_HAND',
-    viaCost: 30,
+    viaCost: 35,
     shopPrice: 500,
     miniGameType: 'TIMING_BAR',
     masteryKey: 'sleightOfHand',
@@ -50,7 +50,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
   },
   EAGLE_EYE: {
     type: 'EAGLE_EYE',
-    viaCost: 50,
+    viaCost: 30,
     shopPrice: 800,
     miniGameType: 'BALANCE_CIRCLE',
     masteryKey: 'eagleEye',

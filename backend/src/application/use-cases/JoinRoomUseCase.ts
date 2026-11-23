@@ -1,9 +1,13 @@
 import crypto from 'crypto';
 import { createPlayer } from '../../domain/entities/Player';
-import { appendRoomLog, createRoom, Room } from '../../domain/entities/Room';
+import {
+  appendRoomLog,
+  createRoom,
+  resolveRoomStakeTier,
+  Room,
+} from '../../domain/entities/Room';
 import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
-import { DEFAULT_STARTING_CHIPS } from '../../domain/entities/Account';
 import { SkinId, WinEffectId } from '../../domain/value-objects/Cosmetic';
 
 const BOT_NAMES = ['Chú Bảy Trà Đá', 'Cô Tư Xoài Lắc', 'Anh Ba Thần Bài'];
@@ -16,6 +20,7 @@ export interface CreateOrJoinRoomInput {
   accountId: string;
   socketId: string;
   botCount?: number;
+  maxBuyIn?: number;
   smallBlind?: number;
   bigBlind?: number;
 }
@@ -34,16 +39,25 @@ export class JoinRoomUseCase {
 
     // Create a new room if roomId is not provided
     if (!input.roomId) {
+      const tier = resolveRoomStakeTier(input.maxBuyIn);
+      if (account.chips < tier.bigBlind) {
+        throw new Error(
+          `Không đủ chip cho sới ${tier.label}! Cần tối thiểu ${tier.bigBlind.toLocaleString()} chip (BB).`
+        );
+      }
+
       const roomId = crypto.randomBytes(3).toString('hex').toUpperCase();
       const room = createRoom({
         id: roomId,
-        name: input.roomName?.trim() || `Sới của ${account.displayName}`,
+        name: input.roomName?.trim() || `Sới ${tier.label} · ${account.displayName}`,
         hostAccountId: account.id,
-        smallBlind: input.smallBlind ?? 50,
-        bigBlind: input.bigBlind ?? 100,
+        maxBuyIn: tier.maxBuyIn,
+        smallBlind: input.smallBlind ?? tier.smallBlind,
+        bigBlind: input.bigBlind ?? tier.bigBlind,
       });
 
-      const hostChips = account.chips > 0 ? account.chips : DEFAULT_STARTING_CHIPS;
+      // Cap table chips to room.maxBuyIn; excess remains safe in Account reserve
+      const hostChips = Math.min(account.chips, room.maxBuyIn);
       const hostPlayer = createPlayer({
         accountId: account.id,
         socketId: input.socketId,
@@ -77,7 +91,7 @@ export class JoinRoomUseCase {
             displayName: BOT_NAMES[i % BOT_NAMES.length],
             isBot: true,
             seatIndex: i + 1,
-            chips: DEFAULT_STARTING_CHIPS,
+            chips: room.maxBuyIn,
             ownedItems: ['ICED_TEA', 'INCENSE_BOWL'],
             equippedSkin: BOT_SKINS[i % BOT_SKINS.length],
             equippedWinEffect: BOT_WIN_EFFECTS[i % BOT_WIN_EFFECTS.length],
@@ -87,7 +101,7 @@ export class JoinRoomUseCase {
 
       appendRoomLog(
         room,
-        `${account.displayName} đã mở bàn${botsToAdd > 0 ? ` với ${botsToAdd} Bot` : ''}.`
+        `${account.displayName} mở sới ${tier.label} (SB ${room.smallBlind.toLocaleString()} / BB ${room.bigBlind.toLocaleString()})${botsToAdd > 0 ? ` với ${botsToAdd} Bot` : ''}.`
       );
       await this.roomRepo.save(room);
       return room;
@@ -118,7 +132,13 @@ export class JoinRoomUseCase {
     let seatIndex = 0;
     while (usedSeats.has(seatIndex)) seatIndex++;
 
-    const startingChips = account.chips > 0 ? account.chips : DEFAULT_STARTING_CHIPS;
+    if (account.chips < room.bigBlind) {
+      throw new Error(
+        `Không đủ chip vào bàn này! Cần tối thiểu ${room.bigBlind.toLocaleString()} chip (BB).`
+      );
+    }
+
+    const startingChips = Math.min(account.chips, room.maxBuyIn);
     room.players.push(
       createPlayer({
         accountId: account.id,

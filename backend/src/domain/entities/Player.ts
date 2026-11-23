@@ -29,6 +29,8 @@ export interface Player {
   isBot: boolean;
   seatIndex: number;
   chips: number;
+  /** Table chip snapshot last synced to Account so maxBuyIn caps never wipe out reserve chips */
+  lastSyncedChips: number;
   currentBet: number;
   totalBetInHand: number;
   holeCards: Card[];
@@ -89,6 +91,7 @@ export function createPlayer(params: {
     isBot: params.isBot,
     seatIndex: params.seatIndex,
     chips: params.chips,
+    lastSyncedChips: params.chips,
     currentBet: 0,
     totalBetInHand: 0,
     holeCards: [],

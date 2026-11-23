@@ -32,12 +32,36 @@ export interface RoomLogEntry {
   message: string;
 }
 
+export interface RoomStakeTier {
+  maxBuyIn: number;
+  label: string;
+  smallBlind: number;
+  bigBlind: number;
+}
+
+export const ROOM_STAKE_TIERS: readonly RoomStakeTier[] = [
+  { maxBuyIn: 500, label: '500', smallBlind: 10, bigBlind: 20 },
+  { maxBuyIn: 1000, label: '1K', smallBlind: 20, bigBlind: 40 },
+  { maxBuyIn: 5000, label: '5K', smallBlind: 100, bigBlind: 200 },
+  { maxBuyIn: 10000, label: '10K', smallBlind: 200, bigBlind: 400 },
+  { maxBuyIn: 50000, label: '50K', smallBlind: 1000, bigBlind: 2000 },
+  { maxBuyIn: 100000, label: '100K', smallBlind: 2000, bigBlind: 4000 },
+  { maxBuyIn: 500000, label: '500K', smallBlind: 10000, bigBlind: 20000 },
+  { maxBuyIn: 1000000, label: '1TR', smallBlind: 20000, bigBlind: 40000 },
+];
+
+export function resolveRoomStakeTier(maxBuyIn?: number): RoomStakeTier {
+  const found = ROOM_STAKE_TIERS.find((t) => t.maxBuyIn === maxBuyIn);
+  return found ?? ROOM_STAKE_TIERS[3]; // Default: 10K (SB 200 / BB 400)
+}
+
 export interface Room {
   id: string;
   name: string;
   hostAccountId: string;
   status: RoomStatus;
   phase: GamePhase;
+  maxBuyIn: number;
   smallBlind: number;
   bigBlind: number;
   maxPlayers: number;
@@ -60,18 +84,23 @@ export function createRoom(params: {
   id: string;
   name: string;
   hostAccountId: string;
+  maxBuyIn?: number;
   smallBlind?: number;
   bigBlind?: number;
   maxPlayers?: number;
 }): Room {
+  const tier = resolveRoomStakeTier(params.maxBuyIn);
+  const smallBlind = params.smallBlind ?? tier.smallBlind;
+  const bigBlind = params.bigBlind ?? tier.bigBlind;
   return {
     id: params.id,
     name: params.name,
     hostAccountId: params.hostAccountId,
     status: 'WAITING',
     phase: 'WAITING',
-    smallBlind: params.smallBlind ?? 50,
-    bigBlind: params.bigBlind ?? 100,
+    maxBuyIn: tier.maxBuyIn,
+    smallBlind,
+    bigBlind,
     maxPlayers: params.maxPlayers ?? 6,
     dealerIndex: -1,
     currentTurnIndex: -1,
@@ -82,7 +111,7 @@ export function createRoom(params: {
     players: [],
     handNumber: 0,
     currentBet: 0,
-    minRaise: params.bigBlind ?? 100,
+    minRaise: bigBlind,
     lastWinners: [],
     eventLog: [],
     createdAt: new Date(),

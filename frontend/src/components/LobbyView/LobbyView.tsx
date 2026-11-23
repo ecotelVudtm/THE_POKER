@@ -1,9 +1,21 @@
 import { FormEvent, useState } from 'react';
 import { Account, SkillType, SkinId, WinEffectId } from '../../types/game';
 import { MAX_EQUIPPED_SKILLS, SKILL_CATALOG_BY_TYPE } from '../../utils/skillCatalog';
+import { soundEngine } from '../../services/soundEngine';
 import { VoxelIcon3D } from '../VoxelIcon3D';
 import { GuideBookModal } from '../GuideBookModal';
 import { SkillShopModal } from '../SkillShopModal';
+
+const ROOM_STAKE_TIERS = [
+  { maxBuyIn: 500, label: '500', smallBlind: 10, bigBlind: 20 },
+  { maxBuyIn: 1000, label: '1K', smallBlind: 20, bigBlind: 40 },
+  { maxBuyIn: 5000, label: '5K', smallBlind: 100, bigBlind: 200 },
+  { maxBuyIn: 10000, label: '10K', smallBlind: 200, bigBlind: 400 },
+  { maxBuyIn: 50000, label: '50K', smallBlind: 1000, bigBlind: 2000 },
+  { maxBuyIn: 100000, label: '100K', smallBlind: 2000, bigBlind: 4000 },
+  { maxBuyIn: 500000, label: '500K', smallBlind: 10000, bigBlind: 20000 },
+  { maxBuyIn: 1000000, label: '1TR', smallBlind: 20000, bigBlind: 40000 },
+] as const;
 
 export interface LobbyViewProps {
   account: Account | null;
@@ -17,8 +29,9 @@ export interface LobbyViewProps {
   onEquipSkin: (skinId: SkinId) => Promise<void>;
   onBuyWinEffect: (effectId: WinEffectId) => Promise<void>;
   onEquipWinEffect: (effectId: WinEffectId) => Promise<void>;
-  onCreateBotRoom: () => void;
-  onCreateOnlineRoom: () => void;
+  onShopOpenChange?: (open: boolean) => void;
+  onCreateBotRoom: (maxBuyIn: number) => void;
+  onCreateOnlineRoom: (maxBuyIn: number) => void;
   onJoinRoom: (roomId: string) => void;
 }
 
@@ -34,6 +47,7 @@ export function LobbyView({
   onEquipSkin,
   onBuyWinEffect,
   onEquipWinEffect,
+  onShopOpenChange,
   onCreateBotRoom,
   onCreateOnlineRoom,
   onJoinRoom,
@@ -46,6 +60,15 @@ export function LobbyView({
   const [joinOpen, setJoinOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [selectedMaxBuyIn, setSelectedMaxBuyIn] = useState<number>(10000);
+
+  const activeTier =
+    ROOM_STAKE_TIERS.find((t) => t.maxBuyIn === selectedMaxBuyIn) ?? ROOM_STAKE_TIERS[3];
+
+  const toggleShop = (next: boolean) => {
+    setShopOpen(next);
+    onShopOpenChange?.(next);
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -232,20 +255,57 @@ export function LobbyView({
           </form>
         ) : (
           <div className="flex flex-col gap-3">
+            {/* Room Stake Tier Selector (500 -> 1TR, proportional SB/BB) */}
+            <div className="voxel-panel-gold p-3">
+              <div className="mb-2 flex items-center justify-between font-mono text-[10px]">
+                <span className="font-extrabold tracking-wider text-accent-gold">
+                  MỨC SỚI (MANG TỐI ĐA)
+                </span>
+                <span className="font-bold text-content-secondary">
+                  SB {activeTier.smallBlind.toLocaleString()} / BB{' '}
+                  {activeTier.bigBlind.toLocaleString()}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {ROOM_STAKE_TIERS.map((tier) => {
+                  const isSelected = selectedMaxBuyIn === tier.maxBuyIn;
+                  const canEnter = account.chips >= tier.bigBlind;
+                  return (
+                    <button
+                      key={tier.maxBuyIn}
+                      type="button"
+                      disabled={!canEnter}
+                      onClick={() => {
+                        soundEngine.playUiClick();
+                        setSelectedMaxBuyIn(tier.maxBuyIn);
+                      }}
+                      className={`voxel-btn border py-1.5 font-mono text-[11px] font-extrabold transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                        isSelected
+                          ? 'border-border-gold bg-accent-gold text-content-inverse'
+                          : 'border-border-subtle bg-surface-canvas text-content-primary hover:border-border-gold hover:text-accent-gold'
+                      }`}
+                    >
+                      {tier.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={onCreateBotRoom}
+              onClick={() => onCreateBotRoom(activeTier.maxBuyIn)}
               className="voxel-btn w-full border-2 border-border-gold bg-accent-gold py-3.5 font-mono text-sm font-extrabold tracking-widest text-content-inverse"
             >
-              CHƠI NGAY VỚI 3 BOT
+              CHƠI NGAY VỚI 3 BOT ({activeTier.label})
             </button>
 
             <button
               type="button"
-              onClick={onCreateOnlineRoom}
+              onClick={() => onCreateOnlineRoom(activeTier.maxBuyIn)}
               className="voxel-btn w-full border-2 border-border-gold bg-surface-panel py-3 font-mono text-xs font-extrabold tracking-widest text-accent-gold"
             >
-              TẠO BÀN ONLINE
+              TẠO BÀN ONLINE ({activeTier.label})
             </button>
 
             {!joinOpen ? (
@@ -278,7 +338,7 @@ export function LobbyView({
 
             <button
               type="button"
-              onClick={() => setShopOpen(true)}
+              onClick={() => toggleShop(true)}
               className="voxel-btn flex w-full items-center justify-center gap-2 border-2 border-border-gold bg-surface-panel py-3 font-mono text-xs font-extrabold tracking-widest text-accent-gold"
             >
               <span>CỬA HÀNG &amp; TRANG BỊ</span>
@@ -314,7 +374,7 @@ export function LobbyView({
         <SkillShopModal
           open={shopOpen}
           account={account}
-          onClose={() => setShopOpen(false)}
+          onClose={() => toggleShop(false)}
           onBuySkill={onBuySkill}
           onUpdateLoadout={onUpdateLoadout}
           onBuySkin={onBuySkin}

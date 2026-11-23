@@ -17,6 +17,19 @@ export interface PlayingCard3DProps {
 
 const DECK_ORIGIN = new THREE.Vector3(-2.6, 0.28, -0.35);
 
+let sharedCardSlabGeo: THREE.BoxGeometry | null = null;
+let sharedCardFaceGeo: THREE.PlaneGeometry | null = null;
+
+function getCardGeometries() {
+  if (!sharedCardSlabGeo) {
+    sharedCardSlabGeo = new THREE.BoxGeometry(0.78, 0.032, 1.1);
+  }
+  if (!sharedCardFaceGeo) {
+    sharedCardFaceGeo = new THREE.PlaneGeometry(0.76, 1.08);
+  }
+  return { slabGeo: sharedCardSlabGeo, faceGeo: sharedCardFaceGeo };
+}
+
 export const PlayingCard3D = memo(function PlayingCard3D({
   card,
   targetPosition,
@@ -31,6 +44,7 @@ export const PlayingCard3D = memo(function PlayingCard3D({
   const targetVec = useRef(new THREE.Vector3());
   const currentFlip = useRef(faceUp ? 0 : Math.PI);
 
+  const { slabGeo, faceGeo } = useMemo(() => getCardGeometries(), []);
   const frontTexture = useMemo(() => (card ? getCardFrontTexture(card) : null), [card]);
   const backTexture = useMemo(() => getCardBackTexture(), []);
 
@@ -38,13 +52,26 @@ export const PlayingCard3D = memo(function PlayingCard3D({
     const group = groupRef.current;
     if (!group) return;
 
-    const lerpFactor = Math.min(1, delta * 9);
+    const desiredFlip = faceUp && card ? 0 : Math.PI;
     targetVec.current.set(targetPosition[0], targetPosition[1], targetPosition[2]);
+
+    const posDone = currentPos.current.distanceToSquared(targetVec.current) < 0.00005;
+    const flipDone = Math.abs(currentFlip.current - desiredFlip) < 0.002;
+    if (posDone && flipDone) {
+      return;
+    }
+
+    const lerpFactor = Math.min(1, delta * 9);
     currentPos.current.lerp(targetVec.current, lerpFactor);
+    if (currentPos.current.distanceToSquared(targetVec.current) < 0.00005) {
+      currentPos.current.copy(targetVec.current);
+    }
     group.position.copy(currentPos.current);
 
-    const desiredFlip = faceUp && card ? 0 : Math.PI;
     currentFlip.current = THREE.MathUtils.lerp(currentFlip.current, desiredFlip, lerpFactor);
+    if (Math.abs(currentFlip.current - desiredFlip) < 0.002) {
+      currentFlip.current = desiredFlip;
+    }
 
     group.rotation.set(
       targetRotation[0],
@@ -64,9 +91,8 @@ export const PlayingCard3D = memo(function PlayingCard3D({
         }
       }}
     >
-      {/* Crisp rectangular voxel card slab */}
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[0.78, 0.032, 1.1]} />
+      {/* Crisp rectangular voxel card slab (shared geometry across all cards) */}
+      <mesh geometry={slabGeo} castShadow receiveShadow>
         <meshStandardMaterial
           color={exposedHighlight ? SCENE_TOKENS.cards.exposedGlow : SCENE_TOKENS.cards.paperEdge}
           emissive={exposedHighlight ? SCENE_TOKENS.cards.exposedGlow : '#000000'}
@@ -77,15 +103,13 @@ export const PlayingCard3D = memo(function PlayingCard3D({
 
       {/* Top face (+Y): pixel-sharp card front */}
       {frontTexture && (
-        <mesh position={[0, 0.017, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[0.76, 1.08]} />
+        <mesh geometry={faceGeo} position={[0, 0.017, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <meshStandardMaterial map={frontTexture} roughness={0.6} />
         </mesh>
       )}
 
       {/* Bottom face (-Y): pixel-art Đông Sơn card back */}
-      <mesh position={[0, -0.017, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.76, 1.08]} />
+      <mesh geometry={faceGeo} position={[0, -0.017, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <meshStandardMaterial map={backTexture} roughness={0.6} />
       </mesh>
     </group>

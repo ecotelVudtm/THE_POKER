@@ -6,6 +6,18 @@ export default defineConfig({
   resolve: {
     dedupe: ['three', 'react', 'react-dom'],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'zustand'],
+          'three-core': ['three'],
+          'r3f-vendor': ['@react-three/fiber', '@react-three/drei'],
+          'socket-vendor': ['socket.io-client'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {
