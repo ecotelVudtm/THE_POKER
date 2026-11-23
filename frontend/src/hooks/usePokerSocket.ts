@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react';
 import {
+  buySkillApi,
+  buySkinApi,
+  buyWinEffectApi,
+  equipSkinApi,
+  equipWinEffectApi,
   fetchAccountByIdApi,
   loginAccountApi,
   registerAccountApi,
+  repayAccountLoanApi,
+  updateLoadoutApi,
 } from '../services/apiClient';
 import { getSocket } from '../services/socketClient';
 import { soundEngine } from '../services/soundEngine';
@@ -18,6 +25,8 @@ import {
   MiniGameResultEvent,
   MiniGameSubmissionPayload,
   SkillType,
+  SkinId,
+  WinEffectId,
 } from '../types/game';
 
 const SESSION_STORAGE_KEY = 'the_poker_account_id';
@@ -51,6 +60,8 @@ export function usePokerSocket() {
   const lastHandNumberRef = useRef<number>(0);
   const lastCommunityCountRef = useRef<number>(0);
   const lastPotRef = useRef<number>(0);
+  const lastTurnAccountRef = useRef<string | null>(null);
+  const lastShowdownHandRef = useRef<number>(0);
 
   // Restore saved session on load if still valid on server
   useEffect(() => {
@@ -98,20 +109,58 @@ export function usePokerSocket() {
     };
 
     const onRoomStateUpdate = (nextRoom: FilteredRoomState) => {
-      if (
-        nextRoom.handNumber > lastHandNumberRef.current ||
-        nextRoom.communityCards.length > lastCommunityCountRef.current
-      ) {
-        soundEngine.playCardDeal();
+      const prevHand = lastHandNumberRef.current;
+      const myAcc = useGameStore.getState().account;
+
+      if (nextRoom.handNumber > prevHand) {
+        soundEngine.playCardShuffle();
+      } else if (nextRoom.communityCards.length > lastCommunityCountRef.current) {
+        soundEngine.playCardFlip();
       }
-      if (nextRoom.pot > lastPotRef.current && nextRoom.handNumber === lastHandNumberRef.current) {
+
+      if (nextRoom.pot > lastPotRef.current && nextRoom.handNumber === prevHand) {
         soundEngine.playChipClink();
       }
+
+      // Alert chime when turn transitions to the local player
+      if (
+        myAcc &&
+        nextRoom.status === 'PLAYING' &&
+        nextRoom.phase !== 'SHOWDOWN' &&
+        nextRoom.currentTurnAccountId === myAcc.id &&
+        lastTurnAccountRef.current !== myAcc.id
+      ) {
+        soundEngine.playYourTurnChime();
+      }
+      lastTurnAccountRef.current = nextRoom.currentTurnAccountId;
+
+      // Victory fanfare when local player wins Showdown
+      if (
+        nextRoom.phase === 'SHOWDOWN' &&
+        nextRoom.lastWinners.length > 0 &&
+        lastShowdownHandRef.current !== nextRoom.handNumber
+      ) {
+        lastShowdownHandRef.current = nextRoom.handNumber;
+        if (myAcc && nextRoom.lastWinners.some((w) => w.accountId === myAcc.id)) {
+          soundEngine.playVictoryFanfare();
+        }
+      }
+
       lastHandNumberRef.current = nextRoom.handNumber;
       lastCommunityCountRef.current = nextRoom.communityCards.length;
       lastPotRef.current = nextRoom.pot;
 
       setRoom(nextRoom);
+
+      // Refresh account when a fresh match starts so consumed skill charges sync immediately
+      if (prevHand === 0 && nextRoom.handNumber === 1) {
+        const meAcc = useGameStore.getState().account;
+        if (meAcc) {
+          void fetchAccountByIdApi(meAcc.id)
+            .then((fresh) => setAccount(fresh))
+            .catch(() => { });
+        }
+      }
 
       const newLogs = nextRoom.eventLog.filter(
         (entry) => entry.timestamp > lastLogTimestampRef.current
@@ -162,7 +211,7 @@ export function usePokerSocket() {
 
         void fetchAccountByIdApi(me.id)
           .then((fresh) => setAccount(fresh))
-          .catch(() => {});
+          .catch(() => { });
       }
     };
 
@@ -196,7 +245,7 @@ export function usePokerSocket() {
         soundEngine.playLevelUp();
         void fetchAccountByIdApi(meAcc.id)
           .then((fresh) => setAccount(fresh))
-          .catch(() => {});
+          .catch(() => { });
       }
       pushToast(
         `${payload.displayName} đạt ${payload.totalWins} thắng — nhận đồ vật ${payload.item}!`,
@@ -338,7 +387,7 @@ export function usePokerSocket() {
     if (acc) {
       void fetchAccountByIdApi(acc.id)
         .then((fresh) => setAccount(fresh))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [resetMatchState, setAccount]);
 
@@ -351,8 +400,14 @@ export function usePokerSocket() {
   const placeBet = useCallback((action: BetAction, raiseAmount?: number) => {
     const currentRoom = useGameStore.getState().room;
     if (!currentRoom) return;
-    if (action === 'CALL' || action === 'RAISE' || action === 'ALL_IN') {
+    if (action === 'ALL_IN') {
+      soundEngine.playAllInDramatic();
+    } else if (action === 'CALL' || action === 'RAISE') {
       soundEngine.playChipClink();
+    } else if (action === 'CHECK') {
+      soundEngine.playCheckTap();
+    } else if (action === 'FOLD') {
+      soundEngine.playFoldWhoosh();
     }
     getSocket().emit('place_bet', { roomId: currentRoom.id, action, raiseAmount });
   }, []);
@@ -361,6 +416,7 @@ export function usePokerSocket() {
     (skillType: SkillType, options?: { targetAccountId?: string; cardIndex?: 0 | 1 }) => {
       const currentRoom = useGameStore.getState().room;
       if (!currentRoom) return;
+      soundEngine.playSkillCast();
       getSocket().emit('trigger_skill', {
         roomId: currentRoom.id,
         skillType,
@@ -406,8 +462,15 @@ export function usePokerSocket() {
         pushToast('Đồng xu hộ mệnh tự động kích hoạt khi thua All-in (<25%)', 'info');
         return;
       }
+      if (itemType === 'INSTANT_NOODLES') {
+        soundEngine.playNoodleSlurp();
+        pushToast('Bát Mì Tôm tự động nâng Max Vía lên 120 (mỗi lần thắng ăn 1 miếng, 3 lần sẽ hết)', 'info');
+        return;
+      }
       if (itemType === 'INCENSE_BOWL') {
         soundEngine.playIncenseBell();
+      } else if (itemType === 'ICED_TEA') {
+        soundEngine.playIceClink();
       } else {
         soundEngine.playItemRefresh();
       }
@@ -430,6 +493,84 @@ export function usePokerSocket() {
     getSocket().emit('repay_loan', { roomId: currentRoom.id });
     setDebtAlert(null);
   }, [setDebtAlert]);
+
+  const repayLobbyLoan = useCallback(async () => {
+    const acc = useGameStore.getState().account;
+    if (!acc) return;
+    const updated = await repayAccountLoanApi(acc.id);
+    soundEngine.playItemRefresh();
+    setAccount(updated);
+    pushToast('Đã trả hết khoản vay thành công!', 'success');
+  }, [pushToast, setAccount]);
+
+  const buySkill = useCallback(
+    async (skillType: SkillType, quantity = 1) => {
+      const acc = useGameStore.getState().account;
+      if (!acc) return;
+      const updated = await buySkillApi(acc.id, skillType, quantity);
+      soundEngine.playPurchaseCash();
+      setAccount(updated);
+      pushToast(`Đã mua +${quantity} lượt tuyệt kỹ!`, 'success');
+    },
+    [pushToast, setAccount]
+  );
+
+  const updateLoadout = useCallback(
+    async (equippedSkills: SkillType[]) => {
+      const acc = useGameStore.getState().account;
+      if (!acc) return;
+      const updated = await updateLoadoutApi(acc.id, equippedSkills);
+      soundEngine.playItemRefresh();
+      setAccount(updated);
+    },
+    [setAccount]
+  );
+
+  const buySkin = useCallback(
+    async (skinId: SkinId) => {
+      const acc = useGameStore.getState().account;
+      if (!acc) return;
+      const updated = await buySkinApi(acc.id, skinId);
+      soundEngine.playLevelUp();
+      setAccount(updated);
+      pushToast('Đã mở khóa & mặc Skin mới!', 'success');
+    },
+    [pushToast, setAccount]
+  );
+
+  const equipSkin = useCallback(
+    async (skinId: SkinId) => {
+      const acc = useGameStore.getState().account;
+      if (!acc) return;
+      const updated = await equipSkinApi(acc.id, skinId);
+      soundEngine.playItemRefresh();
+      setAccount(updated);
+    },
+    [setAccount]
+  );
+
+  const buyWinEffect = useCallback(
+    async (effectId: WinEffectId) => {
+      const acc = useGameStore.getState().account;
+      if (!acc) return;
+      const updated = await buyWinEffectApi(acc.id, effectId);
+      soundEngine.playLevelUp();
+      setAccount(updated);
+      pushToast('Đã mở khóa & trang bị Hiệu Ứng Thắng!', 'success');
+    },
+    [pushToast, setAccount]
+  );
+
+  const equipWinEffect = useCallback(
+    async (effectId: WinEffectId) => {
+      const acc = useGameStore.getState().account;
+      if (!acc) return;
+      const updated = await equipWinEffectApi(acc.id, effectId);
+      soundEngine.playItemRefresh();
+      setAccount(updated);
+    },
+    [setAccount]
+  );
 
   const me =
     room && account
@@ -464,5 +605,12 @@ export function usePokerSocket() {
     closePhone,
     takeLoan,
     repayLoan,
+    repayLobbyLoan,
+    buySkill,
+    updateLoadout,
+    buySkin,
+    equipSkin,
+    buyWinEffect,
+    equipWinEffect,
   };
 }

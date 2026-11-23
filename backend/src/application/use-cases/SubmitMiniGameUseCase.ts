@@ -1,4 +1,5 @@
 import { applyMasteryExp } from '../../domain/entities/Account';
+import { addVia } from '../../domain/entities/Player';
 import { appendRoomLog, Room } from '../../domain/entities/Room';
 import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
@@ -7,6 +8,9 @@ import {
   MiniGameSubmissionPayload,
   PRESSURE_AURA_TIME_PENALTY_SECONDS,
   SKILL_DEFINITIONS,
+  TIME_FREEZE_BANK_BONUS,
+  TIME_FREEZE_TURN_BONUS,
+  VIA_SIPHON_AMOUNT,
 } from '../../domain/value-objects/Skill';
 import { GameDomainEvent } from '../dtos/GameEvents';
 
@@ -66,13 +70,21 @@ export class SubmitMiniGameUseCase {
     if (evaluation.success) {
       if (challenge.skillType === 'SLEIGHT_OF_HAND') {
         const idx = challenge.cardIndex ?? 0;
-        const replacement = player.statusEffects.blessed
-          ? room.deck.drawBiased(player.holeCards)
-          : room.deck.draw();
+        const keptIdx = idx === 0 ? 1 : 0;
+        const keptCard = player.holeCards[keptIdx];
+        const activeSticks = player.ownedItems.includes('INCENSE_BOWL')
+          ? player.itemsState.incenseSticks
+          : 0;
+        const replacement =
+          activeSticks > 0 && keptCard
+            ? room.deck.drawWithIncenseLuck(keptCard, room.communityCards, activeSticks)
+            : room.deck.draw();
         player.holeCards[idx] = replacement;
-        // If that slot was previously exposed, hide the newly swapped card
         player.exposedCardIndices = player.exposedCardIndices.filter((i) => i !== idx);
-        appendRoomLog(room, `🃏 ${player.displayName} tráo bài thành công!`);
+        appendRoomLog(
+          room,
+          `🃏 ${player.displayName} tráo bài thành công${activeSticks > 0 ? ` (Bát hương ${activeSticks} nén phù hộ!)` : '!'}`
+        );
       } else if (challenge.skillType === 'EAGLE_EYE') {
         const nextCard = room.deck.peekNext();
         events.push({
@@ -92,6 +104,39 @@ export class SubmitMiniGameUseCase {
           appendRoomLog(
             room,
             `⚡ ${player.displayName} tỏa khí thế, trừ ${PRESSURE_AURA_TIME_PENALTY_SECONDS}s của ${target.displayName}!`
+          );
+        }
+      } else if (challenge.skillType === 'VIA_SIPHON' && challenge.targetAccountId) {
+        const target = room.players.find((p) => p.accountId === challenge.targetAccountId);
+        if (target && !target.eliminated) {
+          const drained = Math.min(target.via, VIA_SIPHON_AMOUNT);
+          target.via = Math.max(0, target.via - drained);
+          addVia(player, Math.max(15, drained));
+          appendRoomLog(
+            room,
+            `🌀 ${player.displayName} hút ${Math.max(15, drained)} Vía từ ${target.displayName}!`
+          );
+        }
+      } else if (challenge.skillType === 'TIME_FREEZE') {
+        player.timeBankSeconds += TIME_FREEZE_BANK_BONUS;
+        player.turnRemainingSeconds += TIME_FREEZE_TURN_BONUS;
+        appendRoomLog(
+          room,
+          `❄️ ${player.displayName} thi triển Ngưng Đọng (+${TIME_FREEZE_BANK_BONUS}s quỹ giờ, +${TIME_FREEZE_TURN_BONUS}s lượt)!`
+        );
+      } else if (challenge.skillType === 'POKER_FACE') {
+        player.statusEffects.pressured = false;
+        if (player.exposedCardIndices.length > 0) {
+          player.exposedCardIndices.pop();
+          appendRoomLog(
+            room,
+            `🎭 ${player.displayName} dùng Mặt Lạnh — che kín lại 1 lá bài bị Lộ Tẩy!`
+          );
+        } else {
+          player.statusEffects.mangoShield = true;
+          appendRoomLog(
+            room,
+            `🎭 ${player.displayName} dùng Mặt Lạnh — xóa Áp Lực & bật Khiên chống Lộ Tẩy!`
           );
         }
       }

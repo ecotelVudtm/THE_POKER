@@ -36,37 +36,31 @@ export class TakeLoanUseCase {
       throw new Error('Chiếc điện thoại đang bị khóa.');
     }
 
-    if (player.activeLoan) {
-      throw new Error('Bạn đang có khoản vay chưa trả. Hãy trả nợ cũ trước khi vay tiếp.');
-    }
-
     const pkg = LOAN_PACKAGES[input.packageType];
     if (!pkg) {
       throw new Error(`Invalid loan package: ${input.packageType}`);
     }
 
     const loanId = crypto.randomUUID();
+    const prevOwed = player.activeLoan ? player.activeLoan.currentOwed : 0;
+
     player.activeLoan = {
       loanId,
       packageType: input.packageType,
-      principal: pkg.principalCost,
-      currentOwed: pkg.principalCost,
+      principal: (player.activeLoan?.principal ?? 0) + pkg.principalCost,
+      currentOwed: prevOwed + pkg.principalCost,
       interestRate: LOAN_INTEREST_RATE_PER_HAND,
-      handsElapsed: 0,
+      handsElapsed: player.activeLoan?.handsElapsed ?? 0,
       takenAtHand: room.handNumber,
     };
 
-    if (pkg.chipsGranted > 0) {
-      player.chips += pkg.chipsGranted;
-    }
-    if (pkg.timeSecondsGranted > 0) {
-      player.timeBankSeconds += pkg.timeSecondsGranted;
-    }
+    player.chips += pkg.chipsGranted;
 
     if (!player.isBot) {
       const account = await this.accountRepo.findById(player.accountId);
       if (account) {
         account.chips = player.chips;
+        account.loanBalance = (account.loanBalance ?? 0) + pkg.principalCost;
         account.debtHistory.push({
           loanId,
           packageType: input.packageType,
@@ -79,11 +73,10 @@ export class TakeLoanUseCase {
       }
     }
 
-    const desc =
-      pkg.chipsGranted > 0
-        ? `vay nóng ${pkg.chipsGranted} chip`
-        : `mua thêm +${pkg.timeSecondsGranted}s thời gian`;
-    appendRoomLog(room, `📱 ${player.displayName} nhấc điện thoại ${desc} (lãi 15%/ván)!`);
+    appendRoomLog(
+      room,
+      `📱 ${player.displayName} vay nóng +${pkg.chipsGranted.toLocaleString()} chip (tổng nợ ${player.activeLoan.currentOwed.toLocaleString()}, lãi 15%/ván)!`
+    );
 
     await this.roomRepo.save(room);
     return room;

@@ -45,26 +45,39 @@ export class TriggerSkillUseCase {
     const def = SKILL_DEFINITIONS[input.skillType];
     if (!def) throw new Error(`Unknown skill type: ${input.skillType}`);
 
+    if (!player.equippedSkills.includes(input.skillType)) {
+      throw new Error('Bạn không mang lá phép này vào bàn! Hãy mua & trang bị ở Tiệm Phép ngoài sảnh.');
+    }
+
     if (player.via < def.viaCost) {
       throw new Error(`Not enough Vía. Need ${def.viaCost}, have ${player.via}.`);
     }
 
+    let resolvedCardIndex: 0 | 1 | undefined;
     if (input.skillType === 'SLEIGHT_OF_HAND') {
-      const idx = input.cardIndex ?? 0;
-      if (idx !== 0 && idx !== 1) {
-        throw new Error('cardIndex must be 0 or 1 for SLEIGHT_OF_HAND.');
-      }
       if (player.holeCards.length < 2) {
         throw new Error('No hole cards to swap.');
       }
+      const unexposed = ([0, 1] as const).filter((i) => !player.exposedCardIndices.includes(i));
+      if (unexposed.length === 0) {
+        throw new Error('Cả 2 lá bài tẩy đều đã bị lộ, không thể tráo bài!');
+      }
+      const idx = input.cardIndex ?? unexposed[0];
+      if (idx !== 0 && idx !== 1) {
+        throw new Error('cardIndex must be 0 or 1 for SLEIGHT_OF_HAND.');
+      }
+      if (player.exposedCardIndices.includes(idx)) {
+        throw new Error('Lá bài này đã bị lộ (lật ngửa), chỉ được tráo lá bài chưa bị lộ!');
+      }
+      resolvedCardIndex = idx;
     }
 
-    if (input.skillType === 'PRESSURE_AURA') {
+    if (def.requiresTarget) {
       if (!input.targetAccountId) {
-        throw new Error('targetAccountId is required for PRESSURE_AURA.');
+        throw new Error(`targetAccountId is required for ${input.skillType}.`);
       }
       if (input.targetAccountId === player.accountId) {
-        throw new Error('Cannot target yourself with PRESSURE_AURA.');
+        throw new Error(`Cannot target yourself with ${input.skillType}.`);
       }
       const target = room.players.find(
         (p) => p.accountId === input.targetAccountId && !p.eliminated && !p.folded
@@ -86,7 +99,7 @@ export class TriggerSkillUseCase {
       accountId: player.accountId,
       skillType: input.skillType,
       targetAccountId: input.targetAccountId,
-      cardIndex: input.skillType === 'SLEIGHT_OF_HAND' ? (input.cardIndex ?? 0) : undefined,
+      cardIndex: input.skillType === 'SLEIGHT_OF_HAND' ? resolvedCardIndex : undefined,
       modifiers: {
         masteryLevel,
         blessed: player.statusEffects.blessed,

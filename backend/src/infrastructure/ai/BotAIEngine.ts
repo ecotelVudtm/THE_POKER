@@ -3,7 +3,7 @@ import { Card } from '../../domain/entities/Card';
 import { BetAction } from '../../domain/entities/Room';
 import { estimateHandStrength } from '../../domain/rules/HandEvaluator';
 import { FilteredRoomState, PublicPlayerView } from '../../domain/rules/StateFilter';
-import { ITEM_CONFIG, ItemType } from '../../domain/value-objects/Item';
+import { getNextIncenseViaCost, ItemType } from '../../domain/value-objects/Item';
 
 export interface BotDecision {
   itemToUse?: ItemType;
@@ -31,21 +31,22 @@ export class BotAIEngine {
 
     // Occasionally use owned items (ICED_TEA / INCENSE_BOWL)
     let itemToUse: ItemType | undefined;
+    const nextIncenseViaCost = getNextIncenseViaCost(bot.itemsState.incenseSticks);
     if (
       bot.ownedItems.includes('ICED_TEA') &&
-      bot.itemsState.icedTeaCooldownHands === 0 &&
+      bot.itemsState.icedTeaSipsLeft > 0 &&
+      !bot.itemsState.icedTeaUsedThisRound &&
       bot.itemsState.lockedItem !== 'ICED_TEA' &&
-      (bot.timeBankSeconds < 180 || roll < 10)
+      (bot.timeBankSeconds < 90 || roll < 8)
     ) {
       itemToUse = 'ICED_TEA';
     } else if (
       bot.ownedItems.includes('INCENSE_BOWL') &&
-      bot.itemsState.incenseCooldownHands === 0 &&
+      nextIncenseViaCost !== null &&
+      bot.via >= nextIncenseViaCost &&
       bot.itemsState.lockedItem !== 'INCENSE_BOWL' &&
-      bot.via >= ITEM_CONFIG.INCENSE_BOWL.viaCost &&
-      !bot.statusEffects.blessed &&
       roll >= 10 &&
-      roll < 24
+      roll < 20
     ) {
       itemToUse = 'INCENSE_BOWL';
     }

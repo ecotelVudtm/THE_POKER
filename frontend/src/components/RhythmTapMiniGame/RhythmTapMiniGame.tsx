@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MiniGameChallenge, MiniGameSubmissionPayload } from '../../types/game';
+import { soundEngine } from '../../services/soundEngine';
 
 export interface RhythmTapMiniGameProps {
   challenge: MiniGameChallenge;
@@ -7,7 +8,13 @@ export interface RhythmTapMiniGameProps {
 }
 
 const APPROACH_WINDOW_MS = 900;
+const INPUT_LATENCY_COMPENSATION_MS = 45;
 
+/**
+ * Low-latency 60fps Rhythm Tap (Tỏa Khí Thế):
+ * - Uses `onPointerDown` & non-repeating `keydown` (zero mouse-up delay!)
+ * - Applies calibrated -45ms compensation so tapping right as the shrinking frame hits the gold square registers as exact!
+ */
 export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProps) {
   const beats = challenge.params.rhythmBeatsMs;
   const tolerance = challenge.params.rhythmToleranceMs;
@@ -26,7 +33,7 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
     submittedRef.current = true;
     const padded = [...tapsRef.current];
     while (padded.length < beats.length) {
-      padded.push(0); // missed beat
+      padded.push(0);
     }
     onSubmit({
       challengeId: challenge.challengeId,
@@ -39,9 +46,11 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
     const idx = tapsRef.current.length;
     if (idx >= beats.length) return;
 
-    const nowMs = Math.round(performance.now() - startRef.current);
-    tapsRef.current.push(nowMs);
-    const isHit = Math.abs(nowMs - beats[idx]) <= tolerance;
+    const rawMs = performance.now() - startRef.current;
+    const compensatedMs = Math.max(0, Math.round(rawMs - INPUT_LATENCY_COMPENSATION_MS));
+    tapsRef.current.push(compensatedMs);
+    const isHit = Math.abs(compensatedMs - beats[idx]) <= tolerance;
+    soundEngine.playRhythmTap(isHit);
 
     setTapResults((prev) => {
       const copy = [...prev];
@@ -55,8 +64,9 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
   }, [beats, finalize, tolerance]);
 
   useEffect(() => {
+    startRef.current = performance.now();
     let rafId = 0;
-    const lastBeatDeadline = (beats[beats.length - 1] ?? 3200) + tolerance + 250;
+    const lastBeatDeadline = (beats[beats.length - 1] ?? 3200) + tolerance + 260;
 
     const loop = (now: number) => {
       if (submittedRef.current) return;
@@ -76,7 +86,7 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         registerTap();
       }
@@ -97,12 +107,14 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
       </div>
 
       <p className="mt-1 text-xs text-content-secondary">
-        Bấm <kbd className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">Space</kbd> hoặc chạm nút khi khung ngoài thu khít vào khung vàng!
+        Bấm <kbd className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">Space</kbd> hoặc nhấn chuột ngay khi khung ngoài chạm khít khung vàng!
       </p>
 
-      {/* Concentric Square Voxel Rhythm Frames */}
       <div
-        onClick={registerTap}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          registerTap();
+        }}
         className="relative mx-auto mt-5 flex h-44 w-44 cursor-pointer select-none items-center justify-center border-2 border-border-subtle bg-surface-canvas"
       >
         <div className="h-20 w-20 border-4 border-accent-gold bg-accent-gold/10" />
@@ -121,7 +133,7 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
               style={{
                 width: `${sizePx}px`,
                 height: `${sizePx}px`,
-                opacity: 0.4 + progress * 0.6,
+                opacity: 0.45 + progress * 0.55,
               }}
             />
           );
@@ -151,7 +163,10 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
 
       <button
         type="button"
-        onClick={registerTap}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          registerTap();
+        }}
         className="voxel-btn mt-4 w-full border-2 border-status-warning bg-status-warning px-4 py-2.5 font-mono text-sm font-extrabold text-content-inverse"
       >
         BẤM ĐÚNG NHỊP! (SPACE)

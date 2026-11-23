@@ -1,10 +1,11 @@
 import { Card } from './Card';
 import { createDefaultSkillMastery, SkillMastery } from './Account';
-import { createInitialItemsState, ItemType, PlayerItemsState } from '../value-objects/Item';
+import { SkinId, WinEffectId } from '../value-objects/Cosmetic';
+import { createInitialItemsState, ITEM_CONFIG, ItemType, PlayerItemsState } from '../value-objects/Item';
 import { ActiveLoan } from '../value-objects/Loan';
-import { MiniGameChallenge } from '../value-objects/Skill';
+import { MiniGameChallenge, SkillType } from '../value-objects/Skill';
 
-export const INITIAL_TIME_BANK_SECONDS = 300;
+export const INITIAL_TIME_BANK_SECONDS = 180;
 export const TURN_TIME_LIMIT_SECONDS = 20;
 export const MAX_VIA = 100;
 export const INITIAL_VIA = 30;
@@ -44,6 +45,9 @@ export interface Player {
   matchWins: number;
   winStreak: number;
   ownedItems: ItemType[];
+  equippedSkills: SkillType[];
+  equippedSkin: SkinId;
+  equippedWinEffect: WinEffectId;
   itemsState: PlayerItemsState;
   statusEffects: PlayerStatusEffects;
   activeLoan: ActiveLoan | null;
@@ -73,6 +77,9 @@ export function createPlayer(params: {
   seatIndex: number;
   chips: number;
   ownedItems?: ItemType[];
+  equippedSkills?: SkillType[];
+  equippedSkin?: SkinId;
+  equippedWinEffect?: WinEffectId;
   skillMastery?: SkillMastery;
 }): Player {
   return {
@@ -97,6 +104,9 @@ export function createPlayer(params: {
     matchWins: 0,
     winStreak: 0,
     ownedItems: params.ownedItems ? [...params.ownedItems] : [],
+    equippedSkills: params.equippedSkills ? [...params.equippedSkills] : [],
+    equippedSkin: params.equippedSkin ?? 'DEFAULT',
+    equippedWinEffect: params.equippedWinEffect ?? 'NONE',
     itemsState: createInitialItemsState(),
     statusEffects: createInitialStatusEffects(),
     activeLoan: null,
@@ -107,8 +117,20 @@ export function createPlayer(params: {
   };
 }
 
+export function getPlayerMaxVia(player: Player): number {
+  const hasNoodles =
+    player.ownedItems.includes('INSTANT_NOODLES') &&
+    player.itemsState.noodleBitesLeft > 0 &&
+    !(
+      player.itemsState.lockedItem === 'INSTANT_NOODLES' &&
+      player.itemsState.lockedItemHandsLeft > 0
+    );
+  return hasNoodles ? ITEM_CONFIG.INSTANT_NOODLES.maxViaLimit : MAX_VIA;
+}
+
 export function addVia(player: Player, amount: number): void {
-  player.via = Math.max(0, Math.min(MAX_VIA, player.via + amount));
+  const maxVia = getPlayerMaxVia(player);
+  player.via = Math.max(0, Math.min(maxVia, player.via + amount));
 }
 
 export function isEffectiveDebtPressure(player: Player): boolean {

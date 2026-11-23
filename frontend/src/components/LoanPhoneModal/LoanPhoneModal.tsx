@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { LoanPackage, PublicPlayerView } from '../../types/game';
 import { VoxelIcon3D } from '../VoxelIcon3D';
 
@@ -12,6 +11,10 @@ export interface LoanPhoneModalProps {
   onRepayLoan: () => void;
 }
 
+/**
+ * 1-Purpose Everyday Smartphone Loan App:
+ * Borrow Chips (+2K / +5K / +10K) & Repay Persistent Account Debt.
+ */
 export function LoanPhoneModal({
   open,
   me,
@@ -21,8 +24,6 @@ export function LoanPhoneModal({
   onTakeLoan,
   onRepayLoan,
 }: LoanPhoneModalProps) {
-  const [tab, setTab] = useState<'CHIPS' | 'TIME'>('CHIPS');
-
   if (!me) return null;
 
   const handsUntilOverdue = me.activeLoan
@@ -66,20 +67,20 @@ export function LoanPhoneModal({
 
           <div className="p-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-mono text-sm font-extrabold text-accent-gold">VAY NHANH 24/7</h3>
+              <h3 className="font-mono text-sm font-extrabold text-accent-gold">VAY CHIP NÓNG</h3>
               <span className="border border-status-warning bg-status-warning/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-status-warning">
                 +15%/VÁN
               </span>
             </div>
 
             <div className="mt-2 border border-border-subtle bg-surface-panel px-2.5 py-1.5 font-mono text-[10px] text-content-muted">
-              Quỹ thời gian vẫn chạy khi mở điện thoại!
+              Khoản vay được lưu thẳng vào tài khoản kể cả khi rời bàn!
             </div>
 
-            {me.activeLoan ? (
+            {me.activeLoan && (
               <div className="mt-3 border-2 border-status-warning bg-status-warning/10 p-3">
                 <div className="flex items-center justify-between font-mono text-[11px]">
-                  <span className="font-bold text-status-warning">DƯ NỢ</span>
+                  <span className="font-bold text-status-warning">KHOẢN VAY HIỆN TẠI</span>
                   <span className="text-content-secondary">
                     {handsUntilOverdue > 0 ? `Còn ${handsUntilOverdue} ván` : 'QUÁ HẠN!'}
                   </span>
@@ -99,78 +100,46 @@ export function LoanPhoneModal({
                     : `THIẾU ${(me.activeLoan.currentOwed - me.chips).toLocaleString()} CHIP`}
                 </button>
               </div>
-            ) : (
-              <>
-                <div className="mt-3 grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setTab('CHIPS')}
-                    className={`voxel-btn border-2 py-1.5 font-mono text-xs font-extrabold ${
-                      tab === 'CHIPS'
-                        ? 'border-border-gold bg-accent-gold text-content-inverse'
-                        : 'border-border-subtle bg-surface-panel text-content-secondary'
-                    }`}
-                  >
-                    VAY CHIP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTab('TIME')}
-                    className={`voxel-btn border-2 py-1.5 font-mono text-xs font-extrabold ${
-                      tab === 'TIME'
-                        ? 'border-accent-via bg-accent-via text-content-inverse'
-                        : 'border-border-subtle bg-surface-panel text-content-secondary'
-                    }`}
-                  >
-                    MUA GIỜ
-                  </button>
-                </div>
-
-                {tab === 'CHIPS' ? (
-                  <div className="mt-3 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => onTakeLoan('CHIPS_2000')}
-                      className="voxel-btn flex w-full items-center justify-between border-2 border-border-subtle bg-surface-panel px-3 py-2.5 text-left hover:border-border-gold"
-                    >
-                      <span className="font-mono text-xs font-bold text-content-primary">
-                        Gói Cứu Nguy
-                      </span>
-                      <span className="font-mono text-xs font-extrabold text-accent-gold">
-                        +2.000
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onTakeLoan('CHIPS_5000')}
-                      className="voxel-btn flex w-full items-center justify-between border-2 border-border-subtle bg-surface-panel px-3 py-2.5 text-left hover:border-border-gold"
-                    >
-                      <span className="font-mono text-xs font-bold text-content-primary">
-                        Gói Khô Máu
-                      </span>
-                      <span className="font-mono text-xs font-extrabold text-accent-gold">
-                        +5.000
-                      </span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      onClick={() => onTakeLoan('TIME_60S')}
-                      className="voxel-btn flex w-full items-center justify-between border-2 border-accent-via bg-surface-panel px-3 py-2.5 text-left"
-                    >
-                      <span className="font-mono text-xs font-bold text-content-primary">
-                        Gia hạn Quỹ Thời Gian
-                      </span>
-                      <span className="font-mono text-xs font-extrabold text-accent-via">
-                        +60 GIÂY
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </>
             )}
+
+            <div className="mt-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => onTakeLoan('CHIPS_2000')}
+                className="voxel-btn flex w-full items-center justify-between border-2 border-border-subtle bg-surface-panel px-3 py-2.5 text-left hover:border-border-gold"
+              >
+                <span className="font-mono text-xs font-bold text-content-primary">
+                  Gói Cứu Nguy
+                </span>
+                <span className="font-mono text-xs font-extrabold text-accent-gold">
+                  +2.000 CHIP
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onTakeLoan('CHIPS_5000')}
+                className="voxel-btn flex w-full items-center justify-between border-2 border-border-subtle bg-surface-panel px-3 py-2.5 text-left hover:border-border-gold"
+              >
+                <span className="font-mono text-xs font-bold text-content-primary">
+                  Gói Khô Máu
+                </span>
+                <span className="font-mono text-xs font-extrabold text-accent-gold">
+                  +5.000 CHIP
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onTakeLoan('CHIPS_10000')}
+                className="voxel-btn flex w-full items-center justify-between border-2 border-border-gold bg-surface-panel px-3 py-2.5 text-left"
+              >
+                <span className="font-mono text-xs font-bold text-accent-gold">
+                  Gói Đại Gia Nóng
+                </span>
+                <span className="font-mono text-xs font-extrabold text-accent-gold">
+                  +10.000 CHIP
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -7,18 +7,24 @@ export type VoxelIconKind =
   | 'sleight'
   | 'eagle'
   | 'pressure'
+  | 'siphon'
+  | 'freeze'
+  | 'pokerface'
   | 'via'
   | 'book'
   | 'phone'
   | 'incense'
   | 'mango'
   | 'tea'
-  | 'coin';
+  | 'coin'
+  | 'noodles';
 
 export interface VoxelIcon3DProps {
   kind: VoxelIconKind;
   size?: number;
   title?: string;
+  /** When true (e.g. Lobby Guide Book), hovering opens the 3D book cover and clicking triggers parent action instead of spinning */
+  openOnHover?: boolean;
 }
 
 interface VoxelBoxProps {
@@ -128,11 +134,17 @@ function VoxelBox3D({
  * Interactive tilted 3D Voxel Mini-Icon built from joined 6-face solid VoxelBox3D blocks.
  * Click to flick-spin 360° with real 3D depth from every angle.
  */
-export function VoxelIcon3D({ kind, size = 20, title }: VoxelIcon3DProps) {
+export function VoxelIcon3D({
+  kind,
+  size = 20,
+  title,
+  openOnHover = false,
+}: VoxelIcon3DProps) {
   const [spinning, setSpinning] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   const triggerFlick = () => {
-    if (spinning) return;
+    if (openOnHover || spinning) return;
     setSpinning(true);
     if (kind === 'chip' || kind === 'coin') soundEngine.playChipClink();
     else soundEngine.playItemRefresh();
@@ -262,6 +274,101 @@ export function VoxelIcon3D({ kind, size = 20, title }: VoxelIcon3DProps) {
           </>
         );
 
+      case 'siphon':
+        // True 3D Vía vortex core (outer dark frame + glowing cyan-jade crystal + orbit cubes)
+        return (
+          <>
+            <VoxelBox3D
+              w={14}
+              h={14}
+              d={14}
+              frontCls="border border-accent-via bg-accent-via"
+              sideCls="bg-surface-elevated"
+              topCls="bg-content-primary"
+            />
+            <VoxelBox3D
+              w={6}
+              h={6}
+              d={6}
+              x={-8}
+              y={-6}
+              z={3}
+              frontCls="bg-accent-jade"
+              sideCls="bg-accent-via"
+              topCls="bg-content-primary"
+            />
+            <VoxelBox3D
+              w={6}
+              h={6}
+              d={6}
+              x={8}
+              y={6}
+              z={3}
+              frontCls="bg-accent-gold"
+              sideCls="bg-accent-amber"
+              topCls="bg-content-primary"
+            />
+          </>
+        );
+
+      case 'freeze':
+        // True 3D stepped hourglass / icy time-crystal block
+        return (
+          <>
+            <VoxelBox3D
+              w={18}
+              h={5}
+              d={14}
+              y={-7}
+              frontCls="bg-accent-via"
+              sideCls="bg-surface-elevated"
+              topCls="bg-content-primary"
+            />
+            <VoxelBox3D
+              w={9}
+              h={9}
+              d={9}
+              y={0}
+              frontCls="bg-content-primary"
+              sideCls="bg-accent-via"
+              topCls="bg-content-primary"
+            />
+            <VoxelBox3D
+              w={18}
+              h={5}
+              d={14}
+              y={7}
+              frontCls="bg-accent-via"
+              sideCls="bg-surface-elevated"
+              topCls="bg-accent-via"
+            />
+          </>
+        );
+
+      case 'pokerface':
+        // True 3D stoic jade-slate shield mask with crisp visor slit
+        return (
+          <>
+            <VoxelBox3D
+              w={18}
+              h={20}
+              d={8}
+              frontCls="border border-accent-jade bg-surface-elevated"
+              sideCls="bg-surface-panel"
+              topCls="bg-accent-jade"
+              frontContent={
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-1">
+                  <div className="flex w-full justify-around">
+                    <span className="h-[3px] w-[5px] bg-accent-jade" />
+                    <span className="h-[3px] w-[5px] bg-accent-jade" />
+                  </div>
+                  <span className="h-[2px] w-[10px] bg-content-secondary" />
+                </div>
+              }
+            />
+          </>
+        );
+
       case 'via':
         return (
           <VoxelBox3D
@@ -275,6 +382,78 @@ export function VoxelIcon3D({ kind, size = 20, title }: VoxelIcon3DProps) {
         );
 
       case 'book':
+        if (openOnHover) {
+          // Hinged 3D Voxel Book: back cover + stacked pages + hinged front cover that swings open on hover!
+          return (
+            <>
+              {/* Back leather cover */}
+              <VoxelBox3D
+                w={18}
+                h={22}
+                d={2.5}
+                z={-3}
+                frontCls="bg-surface-wood border border-accent-gold"
+                sideCls="bg-surface-wood"
+                topCls="bg-surface-wood"
+              />
+              {/* Spine on left edge */}
+              <VoxelBox3D
+                w={3}
+                h={22}
+                d={8.5}
+                x={-8}
+                z={0}
+                frontCls="bg-surface-wood border-y border-accent-gold"
+                sideCls="bg-surface-wood"
+                topCls="bg-accent-gold"
+              />
+              {/* Thick cream paper page block */}
+              <VoxelBox3D
+                w={15}
+                h={19.5}
+                d={5}
+                x={0.5}
+                z={0.5}
+                frontCls="bg-content-primary border border-content-muted/40"
+                sideCls="bg-content-secondary"
+                topCls="bg-content-primary"
+                frontContent={
+                  <div className="flex h-full w-full flex-col justify-center gap-[2.5px] px-[2.5px]">
+                    <div className="h-[1.5px] w-[75%] bg-surface-wood/70" />
+                    <div className="h-[1.5px] w-full bg-surface-wood/50" />
+                    <div className="h-[1.5px] w-[85%] bg-surface-wood/50" />
+                    <div className="h-[1.5px] w-[65%] bg-accent-gold/80" />
+                  </div>
+                }
+              />
+              {/* Hinged front cover pivoted on left spine — swings open smoothly on hover! */}
+              <div
+                className="absolute left-1/2 top-1/2 transition-transform duration-300 ease-out"
+                style={{
+                  transformStyle: 'preserve-3d',
+                  transform: `translate3d(-8px, 0px, 3.5px) rotateY(${hovered ? -128 : 0}deg)`,
+                }}
+              >
+                <VoxelBox3D
+                  w={17.5}
+                  h={22}
+                  d={2}
+                  x={8.5}
+                  frontCls="border border-accent-gold bg-surface-wood"
+                  sideCls="bg-surface-wood"
+                  topCls="bg-accent-gold"
+                  frontContent={
+                    <div className="flex h-full w-full flex-col items-center justify-between py-2">
+                      <div className="h-1.5 w-full bg-accent-gold" />
+                      <div className="h-2.5 w-2.5 border border-accent-gold bg-accent-gold/40" />
+                      <div className="h-1 w-[70%] bg-accent-gold/75" />
+                    </div>
+                  }
+                />
+              </div>
+            </>
+          );
+        }
         return (
           <>
             <VoxelBox3D
@@ -313,57 +492,53 @@ export function VoxelIcon3D({ kind, size = 20, title }: VoxelIcon3DProps) {
         );
 
       case 'incense':
-        // True 3D Bát Tràng ceramic censer (base cube + wider belly cube + 3 solid sticks + red ember cubes!)
+        // Shallow dish-style 3D Bát Hương + single centered stick + glowing ember tip
         return (
           <>
-            {/* Narrow base block */}
+            {/* Low ceramic foot */}
             <VoxelBox3D
-              w={13}
-              h={4}
-              d={13}
-              y={9}
+              w={14}
+              h={2.5}
+              d={14}
+              y={9.5}
               frontCls="bg-content-muted"
               sideCls="bg-content-muted"
               topCls="bg-content-secondary"
             />
-            {/* Main ceramic belly block */}
+            {/* Wide shallow ceramic dish */}
             <VoxelBox3D
-              w={19}
-              h={10}
-              d={19}
-              y={2}
+              w={21}
+              h={5.5}
+              d={21}
+              y={5.5}
               frontCls="bg-content-primary"
               sideCls="bg-content-secondary"
               topCls="bg-content-muted"
               frontContent={
-                <div className="mt-[3px] h-[3px] w-full bg-accent-via" />
+                <div className="mt-[1.5px] h-[2px] w-full bg-accent-via" />
               }
             />
-            {/* 3 solid 3D incense sticks + glowing ember tips */}
-            {[-4, 0, 4].map((sx) => (
-              <div key={sx} style={{ transformStyle: 'preserve-3d' }}>
-                <VoxelBox3D
-                  w={2}
-                  h={9}
-                  d={2}
-                  x={sx}
-                  y={-6}
-                  frontCls="bg-surface-wood"
-                  sideCls="bg-surface-wood"
-                  topCls="bg-status-danger"
-                />
-                <VoxelBox3D
-                  w={2.5}
-                  h={2.5}
-                  d={2.5}
-                  x={sx}
-                  y={-11}
-                  frontCls="bg-status-danger"
-                  sideCls="bg-status-warning"
-                  topCls="bg-accent-gold"
-                />
-              </div>
-            ))}
+            {/* Single centered 3D incense stick + glowing ember tip */}
+            <VoxelBox3D
+              w={2.2}
+              h={10}
+              d={2.2}
+              x={0}
+              y={-2}
+              frontCls="bg-surface-wood"
+              sideCls="bg-surface-wood"
+              topCls="bg-status-danger"
+            />
+            <VoxelBox3D
+              w={3}
+              h={3}
+              d={3}
+              x={0}
+              y={-8}
+              frontCls="bg-status-danger"
+              sideCls="bg-status-warning"
+              topCls="bg-accent-gold"
+            />
           </>
         );
 
@@ -535,33 +710,112 @@ export function VoxelIcon3D({ kind, size = 20, title }: VoxelIcon3DProps) {
             />
           </>
         );
+
+      case 'noodles':
+        // True 3D ceramic noodle bowl + golden noodles + egg + chopsticks
+        return (
+          <>
+            <VoxelBox3D
+              w={14}
+              h={4}
+              d={14}
+              y={9}
+              frontCls="bg-content-primary"
+              sideCls="bg-content-secondary"
+              topCls="bg-content-primary"
+            />
+            <VoxelBox3D
+              w={20}
+              h={10}
+              d={20}
+              y={2}
+              frontCls="bg-status-danger"
+              sideCls="bg-status-danger"
+              topCls="bg-accent-gold"
+            />
+            <VoxelBox3D
+              w={16}
+              h={4}
+              d={16}
+              y={-4}
+              frontCls="bg-accent-gold"
+              sideCls="bg-accent-amber"
+              topCls="bg-accent-gold"
+            />
+            <VoxelBox3D
+              w={6}
+              h={3}
+              d={6}
+              x={-3}
+              y={-7}
+              z={2}
+              frontCls="bg-content-primary"
+              sideCls="bg-content-secondary"
+              topCls="bg-status-warning"
+            />
+            <VoxelBox3D
+              w={22}
+              h={2}
+              d={2}
+              x={2}
+              y={-7}
+              z={-3}
+              frontCls="bg-surface-wood"
+              sideCls="bg-surface-wood"
+              topCls="bg-accent-amber"
+            />
+          </>
+        );
     }
   };
 
   return (
     <span
-      role="button"
-      tabIndex={0}
-      title={title ?? 'Bấm để búng xoay 3D'}
-      onClick={(e) => {
-        e.stopPropagation();
-        triggerFlick();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          triggerFlick();
-        }
-      }}
+      role={openOnHover ? undefined : 'button'}
+      tabIndex={openOnHover ? undefined : 0}
+      title={title ?? (openOnHover ? 'Mở Sổ Tay Thần Bài' : 'Bấm để búng xoay 3D')}
+      onMouseEnter={
+        openOnHover
+          ? () => {
+              setHovered(true);
+              soundEngine.playBookOpen();
+            }
+          : undefined
+      }
+      onMouseLeave={openOnHover ? () => setHovered(false) : undefined}
+      onClick={
+        openOnHover
+          ? undefined
+          : (e) => {
+              e.stopPropagation();
+              triggerFlick();
+            }
+      }
+      onKeyDown={
+        openOnHover
+          ? undefined
+          : (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                triggerFlick();
+              }
+            }
+      }
       className="voxel-icon-stage shrink-0"
       style={{ width: size + 8, height: size + 8 }}
     >
       <span
-        className={`voxel-icon-3d relative block ${spinning ? 'voxel-icon-flick' : ''}`}
+        className={`voxel-icon-3d relative block transition-transform duration-300 ${
+          spinning ? 'voxel-icon-flick' : ''
+        }`}
         style={{
           width: 24,
           height: 24,
-          transform: spinning ? undefined : `scale(${scale}) rotateX(24deg) rotateY(-32deg)`,
+          transform: spinning
+            ? undefined
+            : openOnHover && hovered
+              ? `scale(${scale * 1.08}) rotateX(18deg) rotateY(-14deg)`
+              : `scale(${scale}) rotateX(24deg) rotateY(-32deg)`,
         }}
       >
         {renderSculpture()}

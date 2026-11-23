@@ -107,14 +107,29 @@ export class MatchTimerLoop {
             player.turnRemainingSeconds = Math.max(0, player.turnRemainingSeconds - 1);
           }
 
-          // Out of total match time bank -> TIME_OUT & auto-fold
+          // Out of 3-minute hand time bank:
+          // If player owns ICED_TEA, auto-shatter it to save them (+30s)!
           if (player.timeBankSeconds <= 0) {
+            if (
+              player.ownedItems.includes('ICED_TEA') &&
+              player.itemsState.icedTeaSipsLeft > 0
+            ) {
+              player.ownedItems = player.ownedItems.filter((item) => item !== 'ICED_TEA');
+              player.itemsState.icedTeaSipsLeft = 0;
+              player.timeBankSeconds = 30;
+              player.turnRemainingSeconds = Math.max(player.turnRemainingSeconds, 15);
+              appendRoomLog(
+                room,
+                `💥 Ly Trà Đá của ${player.displayName} tự vỡ cứu nguy (+30 giây)!`
+              );
+              continue;
+            }
+
             player.timedOut = true;
-            player.eliminated = true;
             player.phoneOpen = false;
             appendRoomLog(
               room,
-              `⏰ ${player.displayName} hết sạch quỹ thời gian (TIME_OUT) và bị loại!`
+              `⏰ ${player.displayName} hết 3 phút trong ván này — tự động Bỏ bài!`
             );
             emittedEvents.push({
               type: 'PLAYER_TIMED_OUT',
@@ -124,14 +139,11 @@ export class MatchTimerLoop {
             });
 
             if (isCurrentTurn && !player.folded) {
-              // Temporarily unset eliminated so PlaceBetUseCase can cleanly process the fold
-              player.eliminated = false;
               const betRes = await this.placeBetUseCase.execute({
                 roomId: room.id,
                 accountId: player.accountId,
                 action: 'FOLD',
               });
-              player.eliminated = true;
               emittedEvents.push(...betRes.events);
             } else {
               player.folded = true;

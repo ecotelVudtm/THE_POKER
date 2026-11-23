@@ -35,6 +35,13 @@ export function App() {
     closePhone,
     takeLoan,
     repayLoan,
+    repayLobbyLoan,
+    buySkill,
+    updateLoadout,
+    buySkin,
+    equipSkin,
+    buyWinEffect,
+    equipWinEffect,
   } = usePokerSocket();
 
   const inMatch = Boolean(account && room);
@@ -57,6 +64,13 @@ export function App() {
           onLogin={login}
           onRegister={register}
           onLogout={logout}
+          onRepayLoan={repayLobbyLoan}
+          onBuySkill={buySkill}
+          onUpdateLoadout={updateLoadout}
+          onBuySkin={buySkin}
+          onEquipSkin={equipSkin}
+          onBuyWinEffect={buyWinEffect}
+          onEquipWinEffect={equipWinEffect}
           onCreateBotRoom={() => createRoom({ botCount: 3 })}
           onCreateOnlineRoom={() => createRoom({ botCount: 0 })}
           onJoinRoom={joinRoom}

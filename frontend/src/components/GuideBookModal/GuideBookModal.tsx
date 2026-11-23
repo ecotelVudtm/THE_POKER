@@ -185,7 +185,7 @@ const TABS = [
   { id: 'hands', label: '1. 10 BỘ BÀI' },
   { id: 'rules', label: '2. VÒNG CƯỢC & CHIP' },
   { id: 'time_via', label: '3. ĐỒNG HỒ & VÍA' },
-  { id: 'items', label: '4. 5 ĐỒ VẬT' },
+  { id: 'items', label: '4. 6 ĐỒ VẬT' },
   { id: 'skills', label: '5. TUYỆT KỸ & PHÍM' },
 ] as const;
 
@@ -368,13 +368,12 @@ export function GuideBookModal({ open, onClose }: GuideBookModalProps) {
 
               <div className="border-l-4 border-accent-gold bg-surface-canvas/75 px-4 py-3">
                 <div className="font-mono text-xs font-extrabold text-accent-gold">
-                  ĐỒNG HỒ BÀN (05:00 TỔNG · 20 GIÂY/LƯỢT)
+                  ĐỒNG HỒ BÀN (03:00 MỖI VÁN · 20 GIÂY/LƯỢT)
                 </div>
                 <p className="mt-1.5 text-xs leading-relaxed text-content-secondary">
-                  Mỗi người có 300 giây (05:00) cho cả trận và tối đa 20 giây mỗi lượt. Nút đồng hồ
-                  chỉ nhấn xuống và đếm ngược khi <strong>đến lượt bạn</strong> hoặc khi bạn mở{' '}
-                  <strong>Điện Thoại / Mini-game</strong>. Mỗi ván mới được hồi nhẹ +15 giây. Cạn
-                  sạch 00:00 sẽ tự động Bỏ bài và bị loại (TIME_OUT).
+                  Mỗi ván bạn có 3 phút (03:00) quỹ thời gian và 20 giây mỗi lượt (qua ván mới tự
+                  động hồi đầy 03:00). Nếu cạn sạch 00:00 mà bạn đang có <strong>Ly Trà Đá</strong>,
+                  ly sẽ tự động vỡ để cứu nguy <strong>+30 giây</strong>!
                 </p>
               </div>
 
@@ -398,7 +397,7 @@ export function GuideBookModal({ open, onClose }: GuideBookModalProps) {
           {activeTab === 'items' && (
             <div className="space-y-3">
               <h3 className="border-b-2 border-border-gold/50 pb-2 font-mono text-sm font-extrabold text-accent-gold">
-                5 ĐỒ VẬT QUEN THUỘC (MỖI 3 VÁN THẮNG TẶNG 1 MÓN)
+                6 ĐỒ VẬT QUEN THUỘC (MỖI 3 VÁN THẮNG TẶNG 1 MÓN)
               </h3>
 
               <div className="border-2 border-accent-jade bg-accent-jade/10 px-4 py-2.5 text-xs text-content-primary">
@@ -412,32 +411,38 @@ export function GuideBookModal({ open, onClose }: GuideBookModalProps) {
                   {
                     icon: 'phone' as const,
                     name: '1. CHIẾC ĐIỆN THOẠI',
-                    tag: 'VAY NÓNG',
-                    desc: 'Vay gấp +2.000 / +5.000 Chip hoặc mua +60s thời gian. Lãi +15%/ván. Quá 3 ván không trả -> Anh Chủ Nợ gọi đòi nợ (+20% độ khó Mini-game). Vỡ nợ -> khóa 1 đồ vật 2 ván.',
+                    tag: 'VAY CHIP VĨNH VIỄN',
+                    desc: 'Vay nóng +2.000 / +5.000 / +10.000 Chip (lãi +15%/ván). Khoản vay được lưu thẳng vào tài khoản kể cả khi bạn rời bàn (có thể trả nợ ở ngoài sảnh hoặc trong bàn).',
                   },
                   {
                     icon: 'incense' as const,
                     name: '2. BÁT HƯƠNG MINI',
-                    tag: '20 VÍA · HỒI 2 VÁN',
-                    desc: 'Thắp nhang tạo khói trắng: nới rộng vùng xanh Mini-game +20% và tăng nhẹ vận may bốc bài trong ván.',
+                    tag: '1–5 NÉN · 100 VÍA / NÉN',
+                    desc: '1 nén (miễn phí): 80% Đôi · 2 nén: 70% 2 Đôi · 3 nén: 60% Tam · 4 nén: 50% Sảnh · 5 nén: 40% Thùng (mỗi cấp thấp hơn tự +2% mỗi lần thắp thêm, tối đa 100%). Thắp thêm tốn 100 Vía; 4 lượt không thắp hương sẽ cháy hết.',
                   },
                   {
                     icon: 'mango' as const,
                     name: '3. QUẢ XOÀI MAY MẮN',
-                    tag: '2 LẦN / TRẬN',
-                    desc: 'Xóa ngay debuff Áp Lực / Đòi Nợ trong ván và bật Khiên Xoài tự động chặn 1 lần bị Lộ Tẩy.',
+                    tag: '2 LẦN · KHIÊN LỘ TẨY',
+                    desc: 'Bật Khiên Xoài tự động chặn 1 lần bị Lộ Tẩy nếu trượt Mini-game.',
                   },
                   {
                     icon: 'tea' as const,
                     name: '4. LY TRÀ ĐÁ',
-                    tag: 'HỒI 2 VÁN',
-                    desc: 'Cộng ngay +20 giây vào đồng hồ cá nhân và làm chậm tốc độ Mini-game 15% ở lượt hiện tại.',
+                    tag: '3 NGỤM · 1 LẦN/VÒNG',
+                    desc: 'Mỗi lần uống cộng +20 giây cho lượt & đồng hồ cá nhân (tối đa 1 lần/vòng cược). Nếu cạn sạch 00:00 sẽ tự vỡ cứu nguy +30 giây!',
                   },
                   {
                     icon: 'coin' as const,
                     name: '5. ĐỒNG XU HỘ MỆNH',
                     tag: 'BỊ ĐỘNG',
                     desc: 'Tự kích hoạt khi bạn thua All-In với tỉ lệ thắng ban đầu < 25%, hoàn lại 15% số chip đã cược.',
+                  },
+                  {
+                    icon: 'noodles' as const,
+                    name: '6. BÁT MÌ TÔM',
+                    tag: '3 MIẾNG · MAX VÍA 120',
+                    desc: 'Chừng nào còn Bát Mì Tôm trên bàn, giới hạn Vía tối đa của bạn được nâng lên 120! Cứ mỗi lần thắng ván bạn sẽ ăn 1 miếng (mì vơi dần, ăn hết 3 lần bát sẽ biến mất).',
                   },
                 ].map((item) => (
                   <div
@@ -464,41 +469,75 @@ export function GuideBookModal({ open, onClose }: GuideBookModalProps) {
             </div>
           )}
 
-          {/* TAB 5: 3 SKILLS & CONTROLS */}
+          {/* TAB 5: 6 MAGIC SPELL CARDS, SHOP & CONTROLS */}
           {activeTab === 'skills' && (
             <div className="space-y-4">
               <h3 className="border-b-2 border-border-gold/50 pb-2 font-mono text-sm font-extrabold text-accent-gold">
-                3 TUYỆT KỸ THẦN BÀI &amp; PHÍM TẮT
+                6 LÁ PHÉP THẦN BÀI · TIỆM PHÉP &amp; PHÍM TẮT
               </h3>
 
-              <div className="space-y-2.5">
+              <div className="border-2 border-accent-via bg-accent-via/10 px-4 py-2.5 text-xs text-content-primary">
+                <strong>Quy tắc Tiệm Phép:</strong> Trước khi vào bàn, mở{' '}
+                <strong className="text-accent-gold">Tiệm Phép &amp; Trang Bị</strong> ngoài sảnh để
+                dùng Chip mua cộng dồn lượt dùng để dành. Bạn được chọn mang vào tối đa{' '}
+                <strong className="text-accent-gold">3 lá phép</strong> mỗi trận (bắt đầu trận sẽ
+                trừ 1 lượt cho mỗi lá đang mang).
+              </div>
+
+              <div className="grid gap-2.5 sm:grid-cols-2">
                 {[
                   {
                     icon: 'sleight' as const,
-                    name: 'TRÁO BÀI TAY ÁO · 30 VÍA (TIMING BAR)',
-                    desc: 'Chọn 1 lá bài tẩy. Bấm Space / click khi kim chạy vào vùng xanh để tráo lấy lá mới từ bộ bài.',
+                    name: 'TRÁO BÀI TAY ÁO · 30 VÍA · 500 CHIP',
+                    tag: 'TIMING BAR',
+                    desc: 'Chọn 1 lá bài tẩy và căn kim vào vùng xanh để tráo lấy lá mới (tăng mạnh vận may theo Bát Hương).',
                   },
                   {
                     icon: 'eagle' as const,
-                    name: 'TÂM NHÃN ĐỌC VỊ · 50 VÍA (BALANCE)',
-                    desc: 'Giữ chuột hoặc phím Space giữ khối sáng trong ô chuẩn suốt 2.5 giây. Thành công sẽ nhìn trộm lá bài sắp lật trong 4 giây (chỉ mình bạn thấy).',
+                    name: 'TÂM NHÃN ĐỌC VỊ · 50 VÍA · 800 CHIP',
+                    tag: 'BÁM Ô DI CHUYỂN',
+                    desc: 'Giữ chuột bám theo ô vuông di chuyển 2.5s để nhìn trộm lá bài chung sắp lật trong 4 giây.',
                   },
                   {
                     icon: 'pressure' as const,
-                    name: 'TỎA KHÍ THẾ · 25 VÍA (RHYTHM TAP)',
-                    desc: 'Chọn 1 đối thủ. Bấm Space đúng tối thiểu 2/3 nhịp thu khung để trừ 10 giây đồng hồ của họ và gắn Áp Lực.',
+                    name: 'TỎA KHÍ THẾ · 25 VÍA · 400 CHIP',
+                    tag: 'RHYTHM TAP',
+                    desc: 'Chọn 1 đối thủ, bấm đúng 2/3 nhịp để trừ 10 giây đồng hồ của họ và gắn Áp Lực.',
+                  },
+                  {
+                    icon: 'siphon' as const,
+                    name: 'HÚT VÍA ĐỐI THỦ · 20 VÍA · 350 CHIP',
+                    tag: 'TIMING BAR',
+                    desc: 'Chọn 1 đối thủ để hút tối đa 25 Vía của họ và hồi ít nhất +15 Vía cho bản thân.',
+                  },
+                  {
+                    icon: 'freeze' as const,
+                    name: 'NGƯNG ĐỌNG THỜI GIAN · 25 VÍA · 400 CHIP',
+                    tag: 'BÁM Ô DI CHUYỂN',
+                    desc: 'Giữ vững nhịp tâm trí để cộng +15 giây quỹ thời gian và +10 giây cho lượt đi hiện tại.',
+                  },
+                  {
+                    icon: 'pokerface' as const,
+                    name: 'MẶT LẠNH TĨNH TÂM · 20 VÍA · 350 CHIP',
+                    tag: 'RHYTHM TAP',
+                    desc: 'Xóa Áp Lực và úp lại 1 lá bài bị Lộ Tẩy (hoặc bật 1 lớp Khiên chống Lộ Tẩy nếu chưa bị lộ).',
                   },
                 ].map((s) => (
                   <div
                     key={s.name}
                     className="flex items-start gap-3 border-2 border-border-subtle bg-surface-canvas/80 p-3"
                   >
-                    <VoxelIcon3D kind={s.icon} size={20} />
-                    <div>
-                      <div className="font-mono text-xs font-extrabold text-accent-gold">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-border-subtle bg-surface-panel">
+                      <VoxelIcon3D kind={s.icon} size={24} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-[11px] font-extrabold text-accent-gold">
                         {s.name}
                       </div>
-                      <p className="mt-1 text-[11px] text-content-secondary">{s.desc}</p>
+                      <div className="mt-0.5 font-mono text-[9px] font-bold text-accent-via">
+                        MINI-GAME: {s.tag}
+                      </div>
+                      <p className="mt-1 text-[11px] leading-snug text-content-secondary">{s.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -507,8 +546,7 @@ export function GuideBookModal({ open, onClose }: GuideBookModalProps) {
               <div className="border-l-4 border-status-danger bg-status-danger/10 px-4 py-3 text-xs text-content-secondary">
                 <strong className="font-mono text-status-danger">HÌNH PHẠT LỘ TẨY:</strong> Mini-game
                 trượt hoặc quá 6 giây sẽ lật ngửa công khai 1 lá bài tẩy của bạn (trừ khi có Khiên
-                Quả Xoài). Mỗi lần dùng đều cộng EXP tăng cấp Lv.1 → Lv.10 trong trận giúp Mini-game
-                dễ hơn!
+                Quả Xoài / Mặt Lạnh). Mỗi lần dùng đều cộng EXP tăng cấp Lv.1 → Lv.10 trong trận!
               </div>
 
               <div className="grid grid-cols-2 gap-2 font-mono text-xs">

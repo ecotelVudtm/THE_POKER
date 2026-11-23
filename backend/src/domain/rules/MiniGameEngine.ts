@@ -8,7 +8,6 @@ import {
   SKILL_DEFINITIONS,
   SkillType,
 } from '../value-objects/Skill';
-import { ITEM_CONFIG } from '../value-objects/Item';
 
 export interface MiniGameEvaluationResult {
   success: boolean;
@@ -40,17 +39,17 @@ export function computeMiniGameParameters(
   let speedMultiplier = 1.0 - levelBonus * 0.04;
   // Base balance ratio needed for BALANCE_CIRCLE
   let requiredBalanceRatio = 0.72 - levelBonus * 0.02;
-  // Base rhythm tolerance in ms for RHYTHM_TAP
-  let rhythmToleranceMs = 180 + levelBonus * 12;
+  // Base rhythm tolerance in ms for RHYTHM_TAP (snappy & fair)
+  let rhythmToleranceMs = 210 + levelBonus * 14;
 
   if (modifiers.blessed) {
-    zoneWidth *= 1 + ITEM_CONFIG.INCENSE_BOWL.miniGameZoneBonus; // +20%
-    rhythmToleranceMs *= 1 + ITEM_CONFIG.INCENSE_BOWL.miniGameZoneBonus;
+    zoneWidth *= 1.2; // +20% (kept for scaling tests / legacy blessed modifier)
+    rhythmToleranceMs *= 1.2;
     requiredBalanceRatio -= 0.06;
   }
 
   if (modifiers.icedTeaActive) {
-    speedMultiplier *= 1 - ITEM_CONFIG.ICED_TEA.miniGameSpeedReduction; // -15% speed
+    speedMultiplier *= 0.85; // -15% speed
     rhythmToleranceMs *= 1.1;
   }
 
@@ -154,10 +153,13 @@ export function evaluateMiniGameSubmission(
     if (typeof pos !== 'number' || Number.isNaN(pos) || pos < 0 || pos > 1) {
       return { success: false, reason: 'Invalid cursorPosition', accuracy: 0, timedOut: false };
     }
-    const success = pos >= params.targetStart && pos <= params.targetEnd;
+    // Slight half-needle edge forgiveness (0.025) so touching the green border visually counts as a hit
+    const edgeForgiveness = 0.025;
+    const success =
+      pos >= params.targetStart - edgeForgiveness && pos <= params.targetEnd + edgeForgiveness;
     const center = (params.targetStart + params.targetEnd) / 2;
     const dist = Math.abs(pos - center);
-    const accuracy = Math.max(0, Number((1 - dist / (params.zoneWidth / 2)).toFixed(3)));
+    const accuracy = Math.max(0, Number((1 - dist / (params.zoneWidth / 2 + edgeForgiveness)).toFixed(3)));
     return {
       success,
       reason: success ? 'Timing bar hit!' : 'Missed timing bar zone',

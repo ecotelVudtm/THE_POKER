@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import {
   Account,
+  createDefaultEquippedSkills,
+  createDefaultSkillInventory,
   createDefaultSkillMastery,
   DEFAULT_STARTING_CHIPS,
 } from '../../domain/entities/Account';
@@ -53,7 +55,14 @@ export class AuthenticateAccountUseCase {
         displayName,
         passwordHash: hashPassword(input.password),
         chips: DEFAULT_STARTING_CHIPS,
+        loanBalance: 0,
         ownedItems: [],
+        skillInventory: createDefaultSkillInventory(),
+        equippedSkills: createDefaultEquippedSkills(),
+        ownedSkins: ['DEFAULT'],
+        equippedSkin: 'DEFAULT',
+        ownedWinEffects: ['NONE'],
+        equippedWinEffect: 'NONE',
         skillMastery: createDefaultSkillMastery(),
         debtHistory: [],
         stats: {
@@ -95,7 +104,14 @@ export class AuthenticateAccountUseCase {
       username: normalizedUsername,
       displayName,
       chips: DEFAULT_STARTING_CHIPS,
+      loanBalance: 0,
       ownedItems: [],
+      skillInventory: createDefaultSkillInventory(),
+      equippedSkills: createDefaultEquippedSkills(),
+      ownedSkins: ['DEFAULT'],
+      equippedSkin: 'DEFAULT',
+      ownedWinEffects: ['NONE'],
+      equippedWinEffect: 'NONE',
       skillMastery: createDefaultSkillMastery(),
       debtHistory: [],
       stats: {

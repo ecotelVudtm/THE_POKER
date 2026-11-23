@@ -22,25 +22,25 @@ const ITEMS_LAYOUT: ItemMeta[] = [
   {
     type: 'PHONE',
     title: 'Điện Thoại Vay Nóng',
-    desc: 'Vay 2K/5K Chip hoặc +60s • Lãi 15%/ván',
+    desc: 'Vay nóng 2K / 5K / 10K Chip • Khoản vay lưu vĩnh viễn (+15%/ván)',
     position: [-4.35, 0.07, 2.75],
   },
   {
     type: 'INCENSE_BOWL',
     title: 'Bát Hương Mini',
-    desc: '20 Vía • Hồi 2 ván • +20% vùng Mini-game',
+    desc: 'Tăng vận may Tráo Bài (1–5 nén • 100 Vía/nén • 4 lượt không thắp tự cháy hết)',
     position: [-3.0, 0.07, 3.1],
   },
   {
     type: 'LUCKY_MANGO',
     title: 'Quả Xoài May Mắn',
-    desc: 'Xóa debuff • Khiên chặn 1 lần Lộ Tẩy',
+    desc: '2 lần/trận • Tạo Khiên tự động chặn 1 lần bị Lộ Tẩy',
     position: [3.0, 0.07, 3.1],
   },
   {
     type: 'ICED_TEA',
     title: 'Ly Trà Đá',
-    desc: 'Hồi 2 ván • +20s thời gian • Chậm Mini-game 15%',
+    desc: '3 ngụm/trận (1 lần/vòng) • +20s thời gian lượt (tự vỡ cứu +30s khi cạn giờ)',
     position: [4.25, 0.07, 2.75],
   },
   {
@@ -49,7 +49,24 @@ const ITEMS_LAYOUT: ItemMeta[] = [
     desc: 'Bị động • Hoàn 15% cược khi thua All-in < 25%',
     position: [5.15, 0.07, 2.15],
   },
+  {
+    type: 'INSTANT_NOODLES',
+    title: 'Bát Mì Tôm Trứng',
+    desc: 'Bị động • Nâng Max Vía lên 120! Mỗi lần thắng ăn 1 miếng (3 lần ăn sẽ hết)',
+    position: [-5.15, 0.07, 2.15],
+  },
 ];
+
+// Natural 3D radial cluster for up to 5 incense sticks (NOT a flat horizontal row!)
+const INCENSE_CLUSTER_OFFSETS: [number, number, number, number][] = [
+  [0, 0, 0, 0], // stick 1: center upright
+  [-0.07, 0.06, 0.1, 0.12], // stick 2: front-left
+  [0.07, 0.06, 0.1, -0.12], // stick 3: front-right
+  [-0.06, -0.07, -0.1, 0.12], // stick 4: back-left
+  [0.06, -0.07, -0.1, -0.12], // stick 5: back-right
+];
+
+const INCENSE_VIA_COST = 100;
 
 /** Single unified stepped-zigzag polygon extrusion — ZERO overlapping faces! */
 function createSteppedDiscGeo(halfSize: number, step: number, height: number): THREE.ExtrudeGeometry {
@@ -75,6 +92,7 @@ function createSteppedDiscGeo(halfSize: number, step: number, height: number): T
 
 let cachedItemGeos: {
   bowlBelly: THREE.ExtrudeGeometry;
+  incenseDish: THREE.ExtrudeGeometry;
   saucer: THREE.ExtrudeGeometry;
 } | null = null;
 
@@ -82,6 +100,7 @@ function getItemGeometries() {
   if (!cachedItemGeos) {
     cachedItemGeos = {
       bowlBelly: createSteppedDiscGeo(0.24, 0.07, 0.16),
+      incenseDish: createSteppedDiscGeo(0.28, 0.08, 0.08),
       saucer: createSteppedDiscGeo(0.28, 0.08, 0.05),
     };
   }
@@ -207,13 +226,15 @@ function InteractiveVoxelItem({
 }
 
 export const TableItems3D = memo(function TableItems3D({ me, onUseItem }: TableItems3DProps) {
-  const { bowlBelly, saucer } = useMemo(() => getItemGeometries(), []);
+  const { bowlBelly, incenseDish, saucer } = useMemo(() => getItemGeometries(), []);
   const bowlTex = useMemo(() => getCeramicBowlTexture(), []);
   const hasDebt = Boolean(me?.activeLoan || me?.statusEffects.debtPressure);
   const phoneScreenTex = useMemo(() => getPhoneScreenTexture(hasDebt), [hasDebt]);
   const phoneScreenMatRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  const isBlessed = Boolean(me?.statusEffects.blessed);
+  const incenseSticks = me?.itemsState.incenseSticks ?? 0;
+  const icedTeaSipsLeft = me?.itemsState.icedTeaSipsLeft ?? 0;
+  const noodleBitesLeft = me?.itemsState.noodleBitesLeft ?? 3;
   const lockedItem = me?.itemsState.lockedItem ?? null;
   const lockedHands = me?.itemsState.lockedItemHandsLeft ?? 0;
 
@@ -230,24 +251,27 @@ export const TableItems3D = memo(function TableItems3D({ me, onUseItem }: TableI
     switch (type) {
       case 'PHONE':
         return me.activeLoan
-          ? `Đang nợ ${me.activeLoan.currentOwed.toLocaleString()} — Bấm trả`
+          ? `Đang nợ ${me.activeLoan.currentOwed.toLocaleString()} — Bấm vay/trả`
           : 'Bấm để mở App Vay Nhanh';
-      case 'INCENSE_BOWL':
-        return me.itemsState.incenseCooldownHands > 0
-          ? `Hồi sau ${me.itemsState.incenseCooldownHands} ván`
-          : me.via >= 20
-            ? 'Sẵn sàng (20 Vía)'
-            : 'Chưa đủ 20 Vía';
+      case 'INCENSE_BOWL': {
+        if (incenseSticks >= 5) return 'Đang cháy tối đa 5/5 nén!';
+        const leftBeforeBurnout = Math.max(0, 4 - (me.itemsState.incenseHandsIdle ?? 0));
+        return `Đang cháy ${incenseSticks}/5 nén (còn ${leftBeforeBurnout} lượt) · Thắp thêm (${INCENSE_VIA_COST} Vía)`;
+      }
       case 'LUCKY_MANGO':
         return me.itemsState.luckyMangoUsesLeft > 0
           ? `Còn ${me.itemsState.luckyMangoUsesLeft}/2 quả`
           : 'Đã dùng hết';
       case 'ICED_TEA':
-        return me.itemsState.icedTeaCooldownHands > 0
-          ? `Hồi sau ${me.itemsState.icedTeaCooldownHands} ván`
-          : 'Sẵn sàng (+20s)';
+        if (icedTeaSipsLeft <= 0) return 'Đã uống cạn (0/3 ngụm)';
+        if (me.itemsState.icedTeaUsedThisRound) return `Còn ${icedTeaSipsLeft}/3 ngụm (đã uống vòng này)`;
+        return `Còn ${icedTeaSipsLeft}/3 ngụm — Bấm uống (+20s)`;
       case 'LUCKY_COIN':
         return 'Tự động bảo hộ';
+      case 'INSTANT_NOODLES':
+        return noodleBitesLeft > 0
+          ? `Còn ${noodleBitesLeft}/3 miếng · Max Vía = 120`
+          : 'Đã ăn hết';
     }
   };
 
@@ -293,7 +317,7 @@ export const TableItems3D = memo(function TableItems3D({ me, onUseItem }: TableI
         </InteractiveVoxelItem>
       )}
 
-      {/* 2. VOXEL STEPPED BÁT HƯƠNG MINI */}
+      {/* 2. VOXEL SHALLOW DISH-STYLE BÁT HƯƠNG MINI */}
       {ownedSet.has('INCENSE_BOWL') && (
         <InteractiveVoxelItem
           meta={ITEMS_LAYOUT[1]}
@@ -302,175 +326,246 @@ export const TableItems3D = memo(function TableItems3D({ me, onUseItem }: TableI
         >
           {(hovered) => (
             <group>
-              <mesh castShadow receiveShadow position={[0, 0.04, 0]}>
-                <boxGeometry args={[0.3, 0.08, 0.3]} />
-                <meshStandardMaterial map={bowlTex} roughness={0.6} />
-              </mesh>
-              <mesh geometry={bowlBelly} castShadow receiveShadow position={[0, 0.24, 0]}>
-                <meshStandardMaterial
-                  map={bowlTex}
-                  emissive={hovered || isBlessed ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
-                  emissiveIntensity={isBlessed ? 0.22 : hovered ? 0.16 : 0}
-                  roughness={0.55}
-                />
-              </mesh>
-              <mesh position={[0, 0.26, 0]}>
-                <boxGeometry args={[0.36, 0.04, 0.36]} />
-                <meshStandardMaterial color="#b5a898" roughness={0.9} />
-              </mesh>
-              {[-0.08, 0, 0.08].map((x, idx) => (
-                <group key={idx} position={[x, 0.42, 0]} rotation={[0, 0, x * -1.2]}>
-                  <mesh>
-                    <boxGeometry args={[0.025, 0.28, 0.025]} />
-                    <meshStandardMaterial color={SCENE_TOKENS.items.incenseStick} />
-                  </mesh>
-                  <mesh position={[0, 0.155, 0]}>
-                    <boxGeometry args={[0.035, 0.035, 0.035]} />
-                    <meshStandardMaterial
-                      color={SCENE_TOKENS.items.incenseEmber}
-                      emissive={SCENE_TOKENS.items.incenseEmber}
-                      emissiveIntensity={isBlessed ? 2.2 : 0.7}
-                    />
-                  </mesh>
-                </group>
-              ))}
-              <VoxelSmokeParticles active={isBlessed} />
-            </group>
-          )}
-        </InteractiveVoxelItem>
-      )}
-
-      {/* 3. VOXEL STEPPED LUCKY MANGO */}
-      {ownedSet.has('LUCKY_MANGO') && (
-        <InteractiveVoxelItem
-          meta={ITEMS_LAYOUT[2]}
-          statusNote={getStatus('LUCKY_MANGO')}
-          onClick={() => onUseItem('LUCKY_MANGO')}
-        >
-          {(hovered) => (
-            <group>
-              <mesh geometry={saucer} castShadow receiveShadow position={[0, 0.05, 0]}>
-                <meshStandardMaterial color="#ece3d2" roughness={0.6} />
-              </mesh>
-              {(me?.itemsState.luckyMangoUsesLeft ?? 2) > 0 && (
-                <group position={[0, 0.15, 0]} rotation={[0, 0.45, 0]}>
-                  <mesh castShadow position={[0, 0, 0]}>
-                    <boxGeometry args={[0.24, 0.18, 0.22]} />
-                    <meshStandardMaterial
-                      color={SCENE_TOKENS.items.mangoSkin}
-                      emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
-                      emissiveIntensity={hovered ? 0.25 : 0}
-                      roughness={0.6}
-                    />
-                  </mesh>
-                  <mesh position={[-0.17, -0.02, 0]}>
-                    <boxGeometry args={[0.1, 0.14, 0.16]} />
-                    <meshStandardMaterial color={SCENE_TOKENS.items.mangoBlush} roughness={0.6} />
-                  </mesh>
-                  <mesh position={[0.17, 0.02, 0]}>
-                    <boxGeometry args={[0.1, 0.14, 0.16]} />
-                    <meshStandardMaterial color="#facc15" roughness={0.6} />
-                  </mesh>
-                  <mesh position={[0.25, 0.05, 0]}>
-                    <boxGeometry args={[0.06, 0.04, 0.04]} />
-                    <meshStandardMaterial color="#5c3a1e" />
-                  </mesh>
-                  <mesh position={[0.2, 0.12, 0.06]}>
-                    <boxGeometry args={[0.12, 0.03, 0.08]} />
-                    <meshStandardMaterial color={SCENE_TOKENS.items.mangoLeaf} />
-                  </mesh>
-                </group>
-              )}
-            </group>
-          )}
-        </InteractiveVoxelItem>
-      )}
-
-      {/* 4. VOXEL TRÀ ĐÁ GLASS */}
-      {ownedSet.has('ICED_TEA') && (
-        <InteractiveVoxelItem
-          meta={ITEMS_LAYOUT[3]}
-          statusNote={getStatus('ICED_TEA')}
-          onClick={() => onUseItem('ICED_TEA')}
-        >
-          {(hovered) => (
-            <group>
-              <mesh castShadow position={[0, 0.23, 0]}>
-                <boxGeometry args={[0.34, 0.46, 0.34]} />
-                <meshStandardMaterial
-                  color={SCENE_TOKENS.items.teaGlass}
-                  transparent
-                  opacity={0.42}
-                  roughness={0.25}
-                />
-              </mesh>
-              <mesh position={[0, 0.19, 0]}>
-                <boxGeometry args={[0.27, 0.32, 0.27]} />
-                <meshStandardMaterial
-                  color={SCENE_TOKENS.items.teaLiquid}
-                  emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
-                  emissiveIntensity={hovered ? 0.25 : 0}
-                  transparent
-                  opacity={0.86}
-                  roughness={0.35}
-                />
-              </mesh>
-              {[
-                [-0.06, 0.38, 0.05],
-                [0.06, 0.37, -0.05],
-              ].map(([ix, iy, iz], idx) => (
-                <mesh key={idx} position={[ix, iy, iz]} rotation={[0.2, 0.4 * idx, 0.1]}>
-                  <boxGeometry args={[0.09, 0.09, 0.09]} />
-                  <meshStandardMaterial color={SCENE_TOKENS.items.teaIce} transparent opacity={0.85} />
+                {/* Low ceramic foot */}
+                <mesh castShadow receiveShadow position={[0, 0.015, 0]}>
+                  <boxGeometry args={[0.32, 0.03, 0.32]} />
+                  <meshStandardMaterial map={bowlTex} roughness={0.6} />
                 </mesh>
-              ))}
-              <mesh position={[0.21, 0.45, 0.14]}>
-                <boxGeometry args={[0.1, 0.1, 0.04]} />
-                <meshStandardMaterial color="#84cc16" />
-              </mesh>
-            </group>
-          )}
-        </InteractiveVoxelItem>
-      )}
-
-      {/* 5. VOXEL HOLLOW SQUARE-HOLE ANCIENT COIN */}
-      {ownedSet.has('LUCKY_COIN') && (
-        <InteractiveVoxelItem
-          meta={ITEMS_LAYOUT[4]}
-          statusNote={getStatus('LUCKY_COIN')}
-          onClick={() => onUseItem('LUCKY_COIN')}
-        >
-          {(hovered) => {
-            const ready = lockedItem !== 'LUCKY_COIN';
-            const emissiveInt = hovered ? 0.5 : ready ? 0.2 : 0;
-            return (
-              <group position={[0, 0.03, 0]}>
-                {[
-                  [0, 0, -0.14, 0.38, 0.06, 0.1],
-                  [0, 0, 0.14, 0.38, 0.06, 0.1],
-                  [-0.14, 0, 0, 0.1, 0.06, 0.18],
-                  [0.14, 0, 0, 0.1, 0.06, 0.18],
-                ].map(([x, y, z, w, h, d], idx) => (
-                  <mesh key={idx} position={[x, y, z]} castShadow>
-                    <boxGeometry args={[w, h, d]} />
+                  {/* Wide shallow ceramic dish */}
+                  <mesh geometry={incenseDish} castShadow receiveShadow position={[0, 0.11, 0]}>
                     <meshStandardMaterial
-                      color={SCENE_TOKENS.items.coinGold}
-                      emissive={ready ? SCENE_TOKENS.items.coinGold : '#000000'}
-                      emissiveIntensity={emissiveInt}
-                      metalness={0.65}
-                      roughness={0.35}
+                      map={bowlTex}
+                      emissive={hovered || incenseSticks > 0 ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
+                      emissiveIntensity={incenseSticks > 0 ? 0.14 + incenseSticks * 0.04 : hovered ? 0.16 : 0}
+                      roughness={0.55}
                     />
                   </mesh>
-                ))}
-                <mesh position={[0.26, 0, 0.14]}>
-                  <boxGeometry args={[0.14, 0.04, 0.06]} />
-                  <meshStandardMaterial color={SCENE_TOKENS.items.coinThread} />
-                </mesh>
-              </group>
-            );
-          }}
-        </InteractiveVoxelItem>
+                    {/* Ash bed sitting cleanly inside the shallow dish */}
+                    <mesh position={[0, 0.125, 0]}>
+                      <boxGeometry args={[0.42, 0.03, 0.42]} />
+                      <meshStandardMaterial color="#b5a898" roughness={0.9} />
+                    </mesh>
+                    {/* 0..5 incense sticks clustered naturally in 3D (NOT a flat row!) */}
+                    {INCENSE_CLUSTER_OFFSETS.slice(0, incenseSticks).map(([sx, sz, rx, rz], idx) => (
+                        <group key={idx} position={[sx, 0.28, sz]} rotation={[rx, 0, rz]}>
+                          <mesh>
+                            <boxGeometry args={[0.025, 0.28, 0.025]} />
+                            <meshStandardMaterial color={SCENE_TOKENS.items.incenseStick} />
+                          </mesh>
+                          <mesh position={[0, 0.155, 0]}>
+                            <boxGeometry args={[0.036, 0.036, 0.036]} />
+                            <meshStandardMaterial
+                              color={SCENE_TOKENS.items.incenseEmber}
+                              emissive={SCENE_TOKENS.items.incenseEmber}
+                              emissiveIntensity={1.6 + incenseSticks * 0.25}
+                            />
+                          </mesh>
+                        </group>
+              ))}
+                        <VoxelSmokeParticles active={incenseSticks > 0} />
+                      </group>
+                    )}
+                  </InteractiveVoxelItem>
       )}
-    </group>
-  );
+
+                  {/* 3. VOXEL STEPPED LUCKY MANGO */}
+                  {ownedSet.has('LUCKY_MANGO') && (
+                    <InteractiveVoxelItem
+                      meta={ITEMS_LAYOUT[2]}
+                      statusNote={getStatus('LUCKY_MANGO')}
+                      onClick={() => onUseItem('LUCKY_MANGO')}
+                    >
+                      {(hovered) => (
+                        <group>
+                          <mesh geometry={saucer} castShadow receiveShadow position={[0, 0.05, 0]}>
+                            <meshStandardMaterial color="#ece3d2" roughness={0.6} />
+                          </mesh>
+                          {(me?.itemsState.luckyMangoUsesLeft ?? 2) > 0 && (
+                            <group position={[0, 0.15, 0]} rotation={[0, 0.45, 0]}>
+                              <mesh castShadow position={[0, 0, 0]}>
+                                <boxGeometry args={[0.24, 0.18, 0.22]} />
+                                <meshStandardMaterial
+                                  color={SCENE_TOKENS.items.mangoSkin}
+                                  emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
+                                  emissiveIntensity={hovered ? 0.25 : 0}
+                                  roughness={0.6}
+                                />
+                              </mesh>
+                              <mesh position={[-0.17, -0.02, 0]}>
+                                <boxGeometry args={[0.1, 0.14, 0.16]} />
+                                <meshStandardMaterial color={SCENE_TOKENS.items.mangoBlush} roughness={0.6} />
+                              </mesh>
+                              <mesh position={[0.17, 0.02, 0]}>
+                                <boxGeometry args={[0.1, 0.14, 0.16]} />
+                                <meshStandardMaterial color="#facc15" roughness={0.6} />
+                              </mesh>
+                              <mesh position={[0.25, 0.05, 0]}>
+                                <boxGeometry args={[0.06, 0.04, 0.04]} />
+                                <meshStandardMaterial color="#5c3a1e" />
+                              </mesh>
+                              <mesh position={[0.2, 0.12, 0.06]}>
+                                <boxGeometry args={[0.12, 0.03, 0.08]} />
+                                <meshStandardMaterial color={SCENE_TOKENS.items.mangoLeaf} />
+                              </mesh>
+                            </group>
+                          )}
+                        </group>
+                      )}
+                    </InteractiveVoxelItem>
+                  )}
+
+                  {/* 4. VOXEL TRÀ ĐÁ GLASS */}
+                  {ownedSet.has('ICED_TEA') && (
+                    <InteractiveVoxelItem
+                      meta={ITEMS_LAYOUT[3]}
+                      statusNote={getStatus('ICED_TEA')}
+                      onClick={() => onUseItem('ICED_TEA')}
+                    >
+                      {(hovered) => (
+                        <group>
+                          <mesh castShadow position={[0, 0.23, 0]}>
+                            <boxGeometry args={[0.34, 0.46, 0.34]} />
+                            <meshStandardMaterial
+                              color={SCENE_TOKENS.items.teaGlass}
+                              transparent
+                              opacity={0.42}
+                              roughness={0.25}
+                            />
+                          </mesh>
+                          {icedTeaSipsLeft > 0 && (
+                            <mesh position={[0, 0.05 + (icedTeaSipsLeft / 3) * 0.16, 0]}>
+                              <boxGeometry args={[0.27, (icedTeaSipsLeft / 3) * 0.32, 0.27]} />
+                              <meshStandardMaterial
+                                color={SCENE_TOKENS.items.teaLiquid}
+                                emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
+                                emissiveIntensity={hovered ? 0.25 : 0}
+                                transparent
+                                opacity={0.86}
+                                roughness={0.35}
+                              />
+                            </mesh>
+                          )}
+                          {[
+                            [-0.06, 0.38, 0.05],
+                            [0.06, 0.37, -0.05],
+                          ].map(([ix, iy, iz], idx) => (
+                            <mesh key={idx} position={[ix, iy, iz]} rotation={[0.2, 0.4 * idx, 0.1]}>
+                              <boxGeometry args={[0.09, 0.09, 0.09]} />
+                              <meshStandardMaterial color={SCENE_TOKENS.items.teaIce} transparent opacity={0.85} />
+                            </mesh>
+                          ))}
+                          <mesh position={[0.21, 0.45, 0.14]}>
+                            <boxGeometry args={[0.1, 0.1, 0.04]} />
+                            <meshStandardMaterial color="#84cc16" />
+                          </mesh>
+                        </group>
+                      )}
+                    </InteractiveVoxelItem>
+                  )}
+
+                  {/* 5. VOXEL HOLLOW SQUARE-HOLE ANCIENT COIN */}
+                  {ownedSet.has('LUCKY_COIN') && (
+                    <InteractiveVoxelItem
+                      meta={ITEMS_LAYOUT[4]}
+                      statusNote={getStatus('LUCKY_COIN')}
+                      onClick={() => onUseItem('LUCKY_COIN')}
+                    >
+                      {(hovered) => {
+                        const ready = lockedItem !== 'LUCKY_COIN';
+                        const emissiveInt = hovered ? 0.5 : ready ? 0.2 : 0;
+                        return (
+                          <group position={[0, 0.03, 0]}>
+                            {[
+                              [0, 0, -0.14, 0.38, 0.06, 0.1],
+                              [0, 0, 0.14, 0.38, 0.06, 0.1],
+                              [-0.14, 0, 0, 0.1, 0.06, 0.18],
+                              [0.14, 0, 0, 0.1, 0.06, 0.18],
+                            ].map(([x, y, z, w, h, d], idx) => (
+                              <mesh key={idx} position={[x, y, z]} castShadow>
+                                <boxGeometry args={[w, h, d]} />
+                                <meshStandardMaterial
+                                  color={SCENE_TOKENS.items.coinGold}
+                                  emissive={ready ? SCENE_TOKENS.items.coinGold : '#000000'}
+                                  emissiveIntensity={emissiveInt}
+                                  metalness={0.65}
+                                  roughness={0.35}
+                                />
+                              </mesh>
+                            ))}
+                            <mesh position={[0.26, 0, 0.14]}>
+                              <boxGeometry args={[0.14, 0.04, 0.06]} />
+                              <meshStandardMaterial color={SCENE_TOKENS.items.coinThread} />
+                            </mesh>
+                          </group>
+                        );
+                      }}
+                    </InteractiveVoxelItem>
+                  )}
+
+                  {/* 6. VOXEL BÁT MÌ TÔM (shrinks visually from 3/3 -> 2/3 -> 1/3 as player eats on each win!) */}
+                  {ownedSet.has('INSTANT_NOODLES') && noodleBitesLeft > 0 && (
+                    <InteractiveVoxelItem
+                      meta={ITEMS_LAYOUT[5]}
+                      statusNote={getStatus('INSTANT_NOODLES')}
+                      onClick={() => onUseItem('INSTANT_NOODLES')}
+                    >
+                      {(hovered) => {
+                        const fillRatio = noodleBitesLeft / 3;
+                        const noodleH = 0.04 + fillRatio * 0.1;
+                        const noodleY = 0.11 + noodleH * 0.5;
+                        return (
+                          <group>
+                            {/* Ceramic bowl base */}
+                            <mesh castShadow receiveShadow position={[0, 0.04, 0]}>
+                              <boxGeometry args={[0.32, 0.08, 0.32]} />
+                              <meshStandardMaterial color="#f5f0e6" roughness={0.55} />
+                            </mesh>
+                            {/* Stepped crimson-trimmed ramen bowl */}
+                            <mesh geometry={bowlBelly} castShadow receiveShadow position={[0, 0.24, 0]}>
+                              <meshStandardMaterial
+                                color="#b91c1c"
+                                emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
+                                emissiveIntensity={hovered ? 0.22 : 0}
+                                roughness={0.5}
+                              />
+                            </mesh>
+                            {/* Golden noodle block (visibly lowers with each bite!) */}
+                            <mesh position={[0, noodleY, 0]}>
+                              <boxGeometry args={[0.36, noodleH, 0.36]} />
+                              <meshStandardMaterial color="#facc15" roughness={0.65} />
+                            </mesh>
+                            {/* Egg & scallion toppings (visible while >= 2 bites left) */}
+                            {noodleBitesLeft >= 2 && (
+                              <>
+                                <mesh position={[-0.06, noodleY + noodleH * 0.5 + 0.015, 0.04]}>
+                                  <boxGeometry args={[0.13, 0.03, 0.13]} />
+                                  <meshStandardMaterial color="#ffffff" roughness={0.4} />
+                                </mesh>
+                                <mesh position={[-0.06, noodleY + noodleH * 0.5 + 0.035, 0.04]}>
+                                  <boxGeometry args={[0.07, 0.03, 0.07]} />
+                                  <meshStandardMaterial color="#f97316" roughness={0.35} />
+                                </mesh>
+                                <mesh position={[0.09, noodleY + noodleH * 0.5 + 0.015, -0.06]}>
+                                  <boxGeometry args={[0.06, 0.025, 0.06]} />
+                                  <meshStandardMaterial color="#22c55e" roughness={0.6} />
+                                </mesh>
+                              </>
+                            )}
+                            {/* Resting bamboo chopsticks across bowl rim */}
+                            <mesh position={[0.02, 0.275, -0.05]} rotation={[0, 0.35, 0]}>
+                              <boxGeometry args={[0.62, 0.025, 0.025]} />
+                              <meshStandardMaterial color="#d97706" roughness={0.7} />
+                            </mesh>
+                            <mesh position={[0.02, 0.275, 0.03]} rotation={[0, 0.22, 0]}>
+                              <boxGeometry args={[0.62, 0.025, 0.025]} />
+                              <meshStandardMaterial color="#d97706" roughness={0.7} />
+                            </mesh>
+                            <VoxelSmokeParticles active={true} />
+                          </group>
+                        );
+                      }}
+                    </InteractiveVoxelItem>
+                  )}
+                </group>
+                );
 });

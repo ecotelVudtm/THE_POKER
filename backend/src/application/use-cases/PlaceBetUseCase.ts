@@ -205,12 +205,14 @@ export class PlaceBetUseCase {
 
   private async advancePhase(room: Room, events: GameDomainEvent[]): Promise<boolean> {
     // Award +10 Vía to all active non-folded players at the end of each betting round
+    // Also reset per-round iced tea sip flag (max 1 sip per betting round)
     for (const p of room.players) {
       if (!p.eliminated && !p.folded) {
         addVia(p, VIA_GAIN_PER_ROUND);
       }
       p.currentBet = 0;
       p.hasActedThisRound = false;
+      p.itemsState.icedTeaUsedThisRound = false;
     }
     room.currentBet = 0;
     room.minRaise = room.bigBlind;
@@ -408,12 +410,36 @@ export class PlaceBetUseCase {
         account.stats.wins += 1;
         player.matchWins += 1;
 
+        // Instant Noodles: eat 1 bite per win (3 bites total -> bowl disappears, max Vía returns to 100)
+        if (
+          player.ownedItems.includes('INSTANT_NOODLES') &&
+          player.itemsState.noodleBitesLeft > 0
+        ) {
+          player.itemsState.noodleBitesLeft -= 1;
+          if (player.itemsState.noodleBitesLeft <= 0) {
+            player.ownedItems = player.ownedItems.filter((it) => it !== 'INSTANT_NOODLES');
+            player.via = Math.min(player.via, 100);
+            appendRoomLog(
+              room,
+              `🍜 ${player.displayName} đã ăn hết Bát Mì Tôm (Max Vía trở về 100)!`
+            );
+          } else {
+            appendRoomLog(
+              room,
+              `🍜 ${player.displayName} húp 1 miếng Mì Tôm mừng chiến thắng (còn ${player.itemsState.noodleBitesLeft}/3 miếng)!`
+            );
+          }
+        }
+
         // Every 3 wins in THIS match -> gift 1 random unowned item for this match!
         if (player.matchWins % 3 === 0) {
           const unowned = ALL_ITEMS.filter((item) => !player.ownedItems.includes(item));
           if (unowned.length > 0) {
             const gifted = unowned[crypto.randomInt(0, unowned.length)];
             player.ownedItems.push(gifted);
+            if (gifted === 'INSTANT_NOODLES') {
+              player.itemsState.noodleBitesLeft = ITEM_CONFIG.INSTANT_NOODLES.maxBites;
+            }
             events.push({
               type: 'ITEM_UNLOCKED',
               roomId: room.id,

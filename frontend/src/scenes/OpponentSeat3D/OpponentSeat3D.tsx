@@ -1,10 +1,10 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { Html } from '@react-three/drei';
 import { GamePhase, PublicPlayerView } from '../../types/game';
 import { SCENE_TOKENS } from '../../styles/themeTokens';
-import { getVoxelFaceTexture } from '../ProceduralTextures';
 import { PlayingCard3D } from '../PlayingCard3D';
 import { ChipStack3D } from '../ChipStack3D';
+import { VoxelAvatar3D } from '../VoxelAvatar3D';
 
 export interface OpponentSeat3DProps {
   player: PublicPlayerView;
@@ -15,8 +15,6 @@ export interface OpponentSeat3DProps {
   isDealer: boolean;
   phase: GamePhase;
 }
-
-const SHIRT_COLORS = ['#2563eb', '#b45309', '#7c3aed', '#0f766e', '#be123c'];
 
 function formatTimeBank(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -36,8 +34,6 @@ export const OpponentSeat3D = memo(function OpponentSeat3D({
   isDealer,
   phase,
 }: OpponentSeat3DProps) {
-  const faceTex = useMemo(() => getVoxelFaceTexture(player.seatIndex), [player.seatIndex]);
-  const shirtColor = SHIRT_COLORS[player.seatIndex % SHIRT_COLORS.length];
   const lowTime = player.timeBankSeconds < 45;
   const dimmed = player.folded || player.eliminated;
 
@@ -88,46 +84,12 @@ export const OpponentSeat3D = memo(function OpponentSeat3D({
           </group>
         )}
 
-        {/* Minecraft Torso */}
-        <mesh castShadow position={[0, 0.52, 0]}>
-          <boxGeometry args={[0.54, 0.62, 0.34]} />
-          <meshStandardMaterial
-            color={dimmed ? SCENE_TOKENS.seats.foldedTint : shirtColor}
-            roughness={0.7}
-          />
-        </mesh>
-
-        {/* Left & Right Blocky Arms */}
-        <mesh castShadow position={[-0.37, 0.52, 0.04]}>
-          <boxGeometry args={[0.18, 0.54, 0.22]} />
-          <meshStandardMaterial
-            color={dimmed ? SCENE_TOKENS.seats.foldedTint : shirtColor}
-            roughness={0.7}
-          />
-        </mesh>
-        <mesh castShadow position={[0.37, 0.52, 0.04]}>
-          <boxGeometry args={[0.18, 0.54, 0.22]} />
-          <meshStandardMaterial
-            color={dimmed ? SCENE_TOKENS.seats.foldedTint : shirtColor}
-            roughness={0.7}
-          />
-        </mesh>
-
-        {/* Minecraft Cube Head */}
-        <mesh castShadow position={[0, 1.06, 0]}>
-          <boxGeometry args={[0.48, 0.48, 0.48]} />
-          <meshStandardMaterial color="#e5b88d" roughness={0.65} />
-        </mesh>
-        {/* Crisp Pixel Face on Front (+Z) */}
-        <mesh position={[0, 1.06, 0.242]}>
-          <planeGeometry args={[0.48, 0.48]} />
-          <meshStandardMaterial map={faceTex} roughness={0.65} />
-        </mesh>
-        {/* Blocky Hair Cap */}
-        <mesh position={[0, 1.31, 0]}>
-          <boxGeometry args={[0.52, 0.08, 0.52]} />
-          <meshStandardMaterial color="#2b1d14" roughness={0.8} />
-        </mesh>
+        {/* Full 3D Voxel Player Avatar with Equipped Skin (Tiers 1–4) */}
+        <VoxelAvatar3D
+          skinId={player.equippedSkin}
+          seatIndex={player.seatIndex}
+          dimmed={dimmed}
+        />
       </group>
 
       {/* Opponent Hole Cards */}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Account,
   BetAction,
+  Card,
   FilteredRoomState,
   PublicPlayerView,
   SkillType,
@@ -40,6 +41,21 @@ const PHASE_LABELS: Record<FilteredRoomState['phase'], string> = {
   RIVER: 'RIVER',
   SHOWDOWN: 'SHOWDOWN',
 };
+
+const SUIT_SYMBOL: Record<Card['suit'], string> = {
+  SPADES: '♠',
+  HEARTS: '♥',
+  DIAMONDS: '♦',
+  CLUBS: '♣',
+};
+
+function formatRank(rank: Card['rank']): string {
+  if (rank === 14) return 'A';
+  if (rank === 13) return 'K';
+  if (rank === 12) return 'Q';
+  if (rank === 11) return 'J';
+  return String(rank);
+}
 
 export function GameHudOverlay({
   room,
@@ -112,7 +128,7 @@ export function GameHudOverlay({
               className="voxel-btn border-2 border-border-gold bg-accent-gold px-4 py-1.5 font-mono text-xs font-extrabold tracking-wider text-content-inverse disabled:opacity-40"
             >
               {room.status === 'FINISHED'
-                ? 'CHƠI TRẬN MỚI (RESET 05:00)'
+                ? 'CHƠI TRẬN MỚI'
                 : `CHIA BÀI (${room.players.length}/${room.maxPlayers})`}
             </button>
           )}
@@ -158,6 +174,50 @@ export function GameHudOverlay({
       {me && (
         <div className="grid items-end gap-2 lg:grid-cols-12">
           <div className="flex flex-col gap-2 lg:col-span-3">
+            {/* Crisp 5-slot Community Cards Strip right above the Clock so suits & ranks are never misread */}
+            <div className="pointer-events-auto flex flex-col gap-1">
+              <span className="font-mono text-[10px] font-extrabold tracking-widest text-content-secondary">
+                BÀI TRÊN BÀN ({room.communityCards.length}/5)
+              </span>
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2, 3, 4].map((slotIdx) => {
+                  const card = room.communityCards[slotIdx];
+                  if (!card) {
+                    return (
+                      <div
+                        key={slotIdx}
+                        className="flex h-12 w-9 items-center justify-center border-2 border-border-subtle bg-surface-canvas/75 font-mono text-xs font-bold text-content-muted/50"
+                      >
+                        ?
+                      </div>
+                    );
+                  }
+                  const isRed = card.suit === 'HEARTS' || card.suit === 'DIAMONDS';
+                  return (
+                    <div
+                      key={`${card.code}_${slotIdx}`}
+                      className="flex h-12 w-9 flex-col items-center justify-between border-2 border-border-gold bg-content-primary px-0.5 py-0.5 font-mono leading-none shadow-[2px_2px_0_rgba(0,0,0,0.8)]"
+                    >
+                      <span
+                        className={`self-start text-[11px] font-extrabold ${
+                          isRed ? 'text-status-danger' : 'text-content-inverse'
+                        }`}
+                      >
+                        {formatRank(card.rank)}
+                      </span>
+                      <span
+                        className={`text-base leading-none ${
+                          isRed ? 'text-status-danger' : 'text-content-inverse'
+                        }`}
+                      >
+                        {SUIT_SYMBOL[card.suit]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <TimeBankWidget
               timeBankSeconds={me.timeBankSeconds}
               turnRemainingSeconds={me.turnRemainingSeconds}

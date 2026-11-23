@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GamePhase, PublicPlayerView, SkillMastery, SkillType } from '../../types/game';
-import { VoxelIcon3D, VoxelIconKind } from '../VoxelIcon3D';
+import { SKILL_CATALOG_BY_TYPE } from '../../utils/skillCatalog';
+import { VoxelIcon3D } from '../VoxelIcon3D';
 
 export interface SkillActionBarProps {
   me: PublicPlayerView;
@@ -13,20 +14,11 @@ export interface SkillActionBarProps {
   ) => void;
 }
 
-interface SpellCardDef {
-  type: SkillType;
-  title: string;
-  subtitle: string;
-  iconKind: VoxelIconKind;
-  cost: number;
-  level: number;
-  disabled: boolean;
-  borderCls: string;
-  innerFrameCls: string;
-  costBgCls: string;
-  titleCls: string;
-  tiltCls: string;
-}
+const TILT_BY_COUNT: Record<number, string[]> = {
+  1: ['rotate-0'],
+  2: ['-rotate-2', 'rotate-2'],
+  3: ['-rotate-2', 'rotate-0', 'rotate-2'],
+};
 
 export function SkillActionBar({
   me,
@@ -45,93 +37,96 @@ export function SkillActionBar({
     !me.hasActiveChallenge;
 
   const activeOpponents = opponents.filter((o) => !o.folded && !o.eliminated);
+  const unexposedCardIndices = ([0, 1] as const).filter(
+    (idx) => idx < me.holeCards.length && !me.exposedCardIndices.includes(idx)
+  );
+  const equipped = (me.equippedSkills ?? []).slice(0, 3);
+  const tilts = TILT_BY_COUNT[equipped.length] ?? ['rotate-0'];
 
-  const spellCards: SpellCardDef[] = [
-    {
-      type: 'SLEIGHT_OF_HAND',
-      title: 'TRÁO BÀI',
-      subtitle: 'TAY ÁO',
-      iconKind: 'sleight',
-      cost: 30,
-      level: mastery.sleightOfHand.level,
-      disabled: !inActiveHand || me.via < 30,
-      borderCls: 'border-border-gold bg-surface-panel',
-      innerFrameCls: 'border-accent-gold/55 bg-surface-wood/35',
-      costBgCls: 'bg-accent-gold text-content-inverse',
-      titleCls: 'text-accent-gold',
-      tiltCls: '-rotate-2',
-    },
-    {
-      type: 'EAGLE_EYE',
-      title: 'TÂM NHÃN',
-      subtitle: 'ĐỌC VỊ',
-      iconKind: 'eagle',
-      cost: 50,
-      level: mastery.eagleEye.level,
-      disabled: !inActiveHand || me.via < 50 || phase === 'RIVER',
-      borderCls: 'border-accent-via bg-surface-panel',
-      innerFrameCls: 'border-accent-via/55 bg-accent-via/10',
-      costBgCls: 'bg-accent-via text-content-inverse',
-      titleCls: 'text-accent-via',
-      tiltCls: 'rotate-0',
-    },
-    {
-      type: 'PRESSURE_AURA',
-      title: 'KHÍ THẾ',
-      subtitle: 'ÁP ĐẢO',
-      iconKind: 'pressure',
-      cost: 25,
-      level: mastery.pressureAura.level,
-      disabled: !inActiveHand || me.via < 25 || activeOpponents.length === 0,
-      borderCls: 'border-status-warning bg-surface-panel',
-      innerFrameCls: 'border-status-danger/60 bg-status-danger/15',
-      costBgCls: 'bg-status-warning text-content-inverse',
-      titleCls: 'text-status-warning',
-      tiltCls: 'rotate-2',
-    },
-  ];
+  const spellCards = equipped.map((skillType, idx) => {
+    const def = SKILL_CATALOG_BY_TYPE[skillType];
+    const level = mastery[def.masteryKey]?.level ?? 1;
+    const disabled =
+      !inActiveHand ||
+      me.via < def.viaCost ||
+      (skillType === 'SLEIGHT_OF_HAND' && unexposedCardIndices.length === 0) ||
+      (skillType === 'EAGLE_EYE' && phase === 'RIVER') ||
+      (def.requiresTarget && activeOpponents.length === 0);
+
+    return {
+      ...def,
+      level,
+      disabled,
+      tiltCls: tilts[idx] ?? 'rotate-0',
+    };
+  });
 
   const handleSkillClick = (type: SkillType) => {
-    if (type === 'EAGLE_EYE') {
-      setPickingSkill(null);
-      onTriggerSkill('EAGLE_EYE');
+    const def = SKILL_CATALOG_BY_TYPE[type];
+    if (type === 'SLEIGHT_OF_HAND') {
+      // If only 1 unexposed hole card remains, swap it directly without asking
+      if (unexposedCardIndices.length === 1) {
+        setPickingSkill(null);
+        onTriggerSkill('SLEIGHT_OF_HAND', { cardIndex: unexposedCardIndices[0] });
+        return;
+      }
+      setPickingSkill((prev) => (prev === type ? null : type));
       return;
     }
-    setPickingSkill((prev) => (prev === type ? null : type));
+    if (def.requiresTarget) {
+      setPickingSkill((prev) => (prev === type ? null : type));
+      return;
+    }
+    setPickingSkill(null);
+    onTriggerSkill(type);
   };
+
+  const pickingTargetDef =
+    pickingSkill && SKILL_CATALOG_BY_TYPE[pickingSkill]?.requiresTarget
+      ? SKILL_CATALOG_BY_TYPE[pickingSkill]
+      : null;
 
   return (
     <div className="pointer-events-auto relative flex flex-col items-center gap-2">
-      {/* Sub-picker popover for card slot or opponent target */}
+      {/* Sub-picker popover for card slot (Sleight of Hand — unexposed cards only) */}
       {pickingSkill === 'SLEIGHT_OF_HAND' && (
         <div className="voxel-panel-gold absolute bottom-full mb-3 flex items-center gap-2 px-3 py-2">
           <span className="font-mono text-xs font-bold text-content-secondary">CHỌN LÁ TRÁO:</span>
-          {([0, 1] as const).map((idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => {
-                setPickingSkill(null);
-                onTriggerSkill('SLEIGHT_OF_HAND', { cardIndex: idx });
-              }}
-              className="voxel-btn border-2 border-border-gold bg-accent-gold px-2.5 py-1 font-mono text-xs font-extrabold text-content-inverse"
-            >
-              {me.holeCards[idx]?.code ?? `#${idx + 1}`}
-            </button>
-          ))}
+          {([0, 1] as const).map((idx) => {
+            const isExposed = me.exposedCardIndices.includes(idx);
+            return (
+              <button
+                key={idx}
+                type="button"
+                disabled={isExposed}
+                onClick={() => {
+                  setPickingSkill(null);
+                  onTriggerSkill('SLEIGHT_OF_HAND', { cardIndex: idx });
+                }}
+                className="voxel-btn border-2 border-border-gold bg-accent-gold px-2.5 py-1 font-mono text-xs font-extrabold text-content-inverse disabled:cursor-not-allowed disabled:border-status-danger/60 disabled:bg-surface-canvas disabled:text-status-danger disabled:opacity-60"
+              >
+                {me.holeCards[idx]?.code ?? `#${idx + 1}`}
+                {isExposed ? ' (ĐÃ LỘ)' : ''}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {pickingSkill === 'PRESSURE_AURA' && (
+      {/* Sub-picker popover for target opponent (Pressure Aura & Via Siphon) */}
+      {pickingTargetDef && (
         <div className="voxel-panel-gold absolute bottom-full mb-3 flex flex-wrap items-center gap-1.5 px-3 py-2">
-          <span className="font-mono text-xs font-bold text-content-secondary">MỤC TIÊU (-10S):</span>
+          <span className="font-mono text-xs font-bold text-content-secondary">
+            {pickingTargetDef.targetLabel ?? 'CHỌN MỤC TIÊU:'}
+          </span>
           {activeOpponents.map((opp) => (
             <button
               key={opp.accountId}
               type="button"
               onClick={() => {
+                const selectedType = pickingTargetDef.type;
                 setPickingSkill(null);
-                onTriggerSkill('PRESSURE_AURA', { targetAccountId: opp.accountId });
+                onTriggerSkill(selectedType, { targetAccountId: opp.accountId });
               }}
               className="voxel-btn border-2 border-status-warning bg-status-warning px-2.5 py-1 font-mono text-xs font-extrabold text-content-inverse"
             >
@@ -141,62 +136,78 @@ export function SkillActionBar({
         </div>
       )}
 
-      {/* 3 Upright Magic Spell Cards (Tarot / Voxel Spell Card Style) */}
-      <div className="flex items-end justify-center gap-3">
-        {spellCards.map((card) => {
-          const isSelected = pickingSkill === card.type;
-          return (
-            <button
-              key={card.type}
-              type="button"
-              disabled={card.disabled}
-              onClick={() => handleSkillClick(card.type)}
-              className={`group relative flex h-[112px] w-[84px] flex-col justify-between border-2 p-1.5 text-center shadow-[4px_4px_0_rgba(0,0,0,0.75)] transition-transform duration-150 ${
-                card.borderCls
-              } ${card.tiltCls} ${
-                isSelected
-                  ? '-translate-y-3 scale-105'
-                  : 'hover:-translate-y-2.5 hover:rotate-0 hover:scale-105'
-              } disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:scale-100`}
-            >
-              {/* Top Row: Mastery Level & Vía Cost Crystal */}
-              <div className="flex w-full items-center justify-between font-mono text-[9px] font-extrabold leading-none">
-                <span className="text-content-muted">LV.{card.level}</span>
-                <span className={`px-1 py-0.5 ${card.costBgCls}`}>{card.cost}</span>
-              </div>
-
-              {/* Center Ornate Inner Spell Art Frame with 3D Voxel Emblem */}
-              <div
-                className={`my-1 flex flex-1 flex-col items-center justify-center border ${card.innerFrameCls}`}
+      {/* Up to 3 Equipped Upright Magic Spell Cards tucked slightly behind the raised Vía bar */}
+      {spellCards.length > 0 ? (
+        <div className="relative z-10 -mb-5 flex items-end justify-center gap-2.5">
+          {spellCards.map((card) => {
+            const isSelected = pickingSkill === card.type;
+            return (
+              <button
+                key={card.type}
+                type="button"
+                disabled={card.disabled}
+                onClick={() => handleSkillClick(card.type)}
+                title={`${card.fullName} — ${card.shortDesc}`}
+                className={`group relative flex h-[136px] w-[104px] flex-col justify-between border-2 p-2 text-center shadow-[4px_4px_0_rgba(0,0,0,0.8)] transition-all duration-150 ${
+                  card.borderCls
+                } ${card.tiltCls} ${
+                  isSelected
+                    ? 'z-30 -translate-y-7 rotate-0 scale-105'
+                    : 'z-10 hover:z-30 hover:-translate-y-7 hover:rotate-0 hover:scale-105'
+                } disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:z-10 disabled:hover:translate-y-0 disabled:hover:scale-100`}
               >
-                <VoxelIcon3D kind={card.iconKind} size={22} />
-                <span className="mt-1 font-mono text-[8px] font-bold tracking-widest text-content-muted">
-                  {card.subtitle}
-                </span>
-              </div>
+                {/* Top Row: Mastery Level & Vía Cost Crystal */}
+                <div className="flex w-full items-center justify-between font-mono text-[10px] font-extrabold leading-none">
+                  <span className="text-content-muted">LV.{card.level}</span>
+                  <span className={`px-1.5 py-0.5 ${card.costBgCls}`}>{card.viaCost}</span>
+                </div>
 
-              {/* Bottom Spell Nameplate */}
-              <div className={`font-display text-[11px] font-bold leading-tight tracking-wide ${card.titleCls}`}>
-                {card.title}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                {/* Center Ornate Inner Spell Art Frame with 3D Voxel Emblem */}
+                <div
+                  className={`my-1.5 flex flex-1 flex-col items-center justify-center border ${card.innerFrameCls}`}
+                >
+                  <VoxelIcon3D kind={card.iconKind} size={26} />
+                  <span className="mt-1 font-mono text-[9px] font-bold tracking-widest text-content-muted">
+                    {card.subtitle}
+                  </span>
+                </div>
 
-      {/* Slim Glowing Vía Energy Bar right under the 3 Spell Cards */}
-      <div className="voxel-panel flex w-full max-w-[286px] items-center gap-2 px-2.5 py-1">
-        <VoxelIcon3D kind="via" size={14} />
-        <span className="font-mono text-[10px] font-extrabold tracking-wider text-accent-via">
-          VÍA {me.via}
-        </span>
-        <div className="h-2 flex-1 border border-border-subtle bg-surface-elevated">
-          <div
-            className="h-full bg-accent-via transition-all duration-300"
-            style={{ width: `${Math.min(100, me.via)}%` }}
-          />
+                {/* Bottom Spell Nameplate */}
+                <div
+                  className={`pb-1 font-display text-xs font-bold leading-tight tracking-wide ${card.titleCls}`}
+                >
+                  {card.title}
+                </div>
+              </button>
+            );
+          })}
         </div>
-      </div>
+      ) : (
+        <div className="voxel-panel relative z-10 px-3 py-1 font-mono text-[10px] font-bold text-content-muted">
+          KHÔNG MANG LÁ PHÉP (MUA &amp; TRANG BỊ Ở SẢNH)
+        </div>
+      )}
+
+      {/* Raised Vía Energy Bar sitting IN FRONT of the bottom edge of the Spell Cards */}
+      {(() => {
+        const hasNoodles =
+          me.ownedItems.includes('INSTANT_NOODLES') && (me.itemsState.noodleBitesLeft ?? 0) > 0;
+        const maxVia = hasNoodles ? 120 : 100;
+        return (
+          <div className="voxel-panel-gold relative z-20 flex w-full max-w-[344px] items-center gap-2.5 px-3 py-1.5">
+            <VoxelIcon3D kind="via" size={16} />
+            <span className="font-mono text-[11px] font-extrabold tracking-wider text-accent-via">
+              VÍA {me.via}/{maxVia}
+            </span>
+            <div className="h-2.5 flex-1 border border-border-subtle bg-surface-elevated">
+              <div
+                className="h-full bg-accent-via transition-all duration-300"
+                style={{ width: `${Math.min(100, (me.via / maxVia) * 100)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

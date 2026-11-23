@@ -12,12 +12,40 @@ export type ItemType =
   | 'INCENSE_BOWL'
   | 'LUCKY_MANGO'
   | 'ICED_TEA'
-  | 'LUCKY_COIN';
+  | 'LUCKY_COIN'
+  | 'INSTANT_NOODLES';
 
-export type LoanPackage = 'CHIPS_2000' | 'CHIPS_5000' | 'TIME_60S';
+export type LoanPackage = 'CHIPS_2000' | 'CHIPS_5000' | 'CHIPS_10000';
 
-export type SkillType = 'SLEIGHT_OF_HAND' | 'EAGLE_EYE' | 'PRESSURE_AURA';
+export type SkillType =
+  | 'SLEIGHT_OF_HAND'
+  | 'EAGLE_EYE'
+  | 'PRESSURE_AURA'
+  | 'VIA_SIPHON'
+  | 'TIME_FREEZE'
+  | 'POKER_FACE';
 export type MiniGameType = 'TIMING_BAR' | 'BALANCE_CIRCLE' | 'RHYTHM_TAP';
+
+export type SkinId =
+  | 'DEFAULT'
+  | 'SUNGLASSES_COOL'
+  | 'RED_HOODIE'
+  | 'GOLD_SHIRT'
+  | 'FEDORA_BOSS'
+  | 'COWBOY_ACE'
+  | 'CAPTAIN_CROWN'
+  | 'FIREFLY_SAGE'
+  | 'NEON_DISCO'
+  | 'TYCOON_WATCH'
+  | 'GRAND_MAGICIAN';
+
+export type WinEffectId =
+  | 'NONE'
+  | 'CONFETTI'
+  | 'DOVES'
+  | 'TORNADO'
+  | 'FIRE_BURST'
+  | 'LIGHTNING';
 
 export type RoomStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
 export type GamePhase =
@@ -38,7 +66,12 @@ export interface SkillMastery {
   sleightOfHand: MasteryProgress;
   eagleEye: MasteryProgress;
   pressureAura: MasteryProgress;
+  viaSiphon: MasteryProgress;
+  timeFreeze: MasteryProgress;
+  pokerFace: MasteryProgress;
 }
+
+export type SkillInventory = Record<SkillType, number>;
 
 export interface DebtRecord {
   loanId: string;
@@ -55,7 +88,14 @@ export interface Account {
   username: string;
   displayName: string;
   chips: number;
+  loanBalance: number;
   ownedItems: ItemType[];
+  skillInventory: SkillInventory;
+  equippedSkills: SkillType[];
+  ownedSkins: SkinId[];
+  equippedSkin: SkinId;
+  ownedWinEffects: WinEffectId[];
+  equippedWinEffect: WinEffectId;
   skillMastery: SkillMastery;
   debtHistory: DebtRecord[];
   stats: {
@@ -66,8 +106,11 @@ export interface Account {
 }
 
 export interface PlayerItemsState {
-  incenseCooldownHands: number;
-  icedTeaCooldownHands: number;
+  incenseSticks: number;
+  incenseHandsIdle: number;
+  icedTeaSipsLeft: number;
+  icedTeaUsedThisRound: boolean;
+  noodleBitesLeft: number;
   luckyMangoUsesLeft: number;
   lockedItem: ItemType | null;
   lockedItemHandsLeft: number;
@@ -111,6 +154,9 @@ export interface PublicPlayerView {
   via: number;
   winStreak: number;
   ownedItems: ItemType[];
+  equippedSkills: SkillType[];
+  equippedSkin: SkinId;
+  equippedWinEffect: WinEffectId;
   itemsState: PlayerItemsState;
   statusEffects: PlayerStatusEffects;
   activeLoan: ActiveLoan | null;

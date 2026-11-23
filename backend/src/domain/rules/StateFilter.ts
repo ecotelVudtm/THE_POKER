@@ -4,6 +4,8 @@ import { GamePhase, HandWinner, Room, RoomLogEntry, RoomStatus, SidePot } from '
 import { ItemType, PlayerItemsState } from '../value-objects/Item';
 import { ActiveLoan } from '../value-objects/Loan';
 import { SkillMastery } from '../entities/Account';
+import { SkinId, WinEffectId } from '../value-objects/Cosmetic';
+import { SkillType } from '../value-objects/Skill';
 
 export interface PublicPlayerView {
   accountId: string;
@@ -25,6 +27,9 @@ export interface PublicPlayerView {
   via: number;
   winStreak: number;
   ownedItems: ItemType[];
+  equippedSkills: SkillType[];
+  equippedSkin: SkinId;
+  equippedWinEffect: WinEffectId;
   itemsState: PlayerItemsState;
   statusEffects: PlayerStatusEffects;
   activeLoan: ActiveLoan | null;
@@ -90,6 +95,9 @@ function filterPlayerForViewer(
     via: player.via,
     winStreak: player.winStreak,
     ownedItems: [...player.ownedItems],
+    equippedSkills: [...player.equippedSkills],
+    equippedSkin: player.equippedSkin,
+    equippedWinEffect: player.equippedWinEffect,
     itemsState: { ...player.itemsState },
     statusEffects: { ...player.statusEffects },
     activeLoan: player.activeLoan ? { ...player.activeLoan } : null,

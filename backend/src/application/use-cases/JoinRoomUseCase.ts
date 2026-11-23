@@ -4,8 +4,11 @@ import { appendRoomLog, createRoom, Room } from '../../domain/entities/Room';
 import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
 import { DEFAULT_STARTING_CHIPS } from '../../domain/entities/Account';
+import { SkinId, WinEffectId } from '../../domain/value-objects/Cosmetic';
 
 const BOT_NAMES = ['Chú Bảy Trà Đá', 'Cô Tư Xoài Lắc', 'Anh Ba Thần Bài'];
+const BOT_SKINS: SkinId[] = ['SUNGLASSES_COOL', 'FEDORA_BOSS', 'COWBOY_ACE'];
+const BOT_WIN_EFFECTS: WinEffectId[] = ['CONFETTI', 'DOVES', 'FIRE_BURST'];
 
 export interface CreateOrJoinRoomInput {
   roomId?: string;
@@ -41,17 +44,29 @@ export class JoinRoomUseCase {
       });
 
       const hostChips = account.chips > 0 ? account.chips : DEFAULT_STARTING_CHIPS;
-      room.players.push(
-        createPlayer({
-          accountId: account.id,
-          socketId: input.socketId,
-          displayName: account.displayName,
-          isBot: false,
-          seatIndex: 0,
-          chips: hostChips,
-          ownedItems: [],
-        })
-      );
+      const hostPlayer = createPlayer({
+        accountId: account.id,
+        socketId: input.socketId,
+        displayName: account.displayName,
+        isBot: false,
+        seatIndex: 0,
+        chips: hostChips,
+        ownedItems: [],
+        equippedSkin: account.equippedSkin,
+        equippedWinEffect: account.equippedWinEffect,
+      });
+      if (account.loanBalance > 0) {
+        hostPlayer.activeLoan = {
+          loanId: `carry_${account.id}`,
+          packageType: 'CHIPS_2000',
+          principal: account.loanBalance,
+          currentOwed: account.loanBalance,
+          interestRate: 0.15,
+          handsElapsed: 0,
+          takenAtHand: 0,
+        };
+      }
+      room.players.push(hostPlayer);
 
       const botsToAdd = Math.max(0, Math.min(3, Math.floor(input.botCount ?? 0)));
       for (let i = 0; i < botsToAdd; i++) {
@@ -64,6 +79,8 @@ export class JoinRoomUseCase {
             seatIndex: i + 1,
             chips: DEFAULT_STARTING_CHIPS,
             ownedItems: ['ICED_TEA', 'INCENSE_BOWL'],
+            equippedSkin: BOT_SKINS[i % BOT_SKINS.length],
+            equippedWinEffect: BOT_WIN_EFFECTS[i % BOT_WIN_EFFECTS.length],
           })
         );
       }
@@ -111,6 +128,8 @@ export class JoinRoomUseCase {
         seatIndex,
         chips: startingChips,
         ownedItems: [],
+        equippedSkin: account.equippedSkin,
+        equippedWinEffect: account.equippedWinEffect,
       })
     );
 

@@ -1,7 +1,16 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { Account } from '../../domain/entities/Account';
+import {
+  Account,
+  createDefaultEquippedSkills,
+  normalizeEquippedSkin,
+  normalizeEquippedWinEffect,
+  normalizeOwnedSkins,
+  normalizeOwnedWinEffects,
+  normalizeSkillInventory,
+  normalizeSkillMastery,
+} from '../../domain/entities/Account';
 import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
 
 /**
@@ -26,7 +35,20 @@ export class InMemoryAccountRepository implements IAccountRepository {
       for (const acc of parsed) {
         this.store.set(acc.id, {
           ...acc,
+          loanBalance: typeof acc.loanBalance === 'number' ? acc.loanBalance : 0,
           ownedItems: Array.isArray(acc.ownedItems) ? acc.ownedItems : [],
+          skillInventory: normalizeSkillInventory(acc.skillInventory),
+          equippedSkills: Array.isArray(acc.equippedSkills)
+            ? [...acc.equippedSkills]
+            : createDefaultEquippedSkills(),
+          ownedSkins: normalizeOwnedSkins(acc.ownedSkins),
+          equippedSkin: normalizeEquippedSkin(acc.equippedSkin, normalizeOwnedSkins(acc.ownedSkins)),
+          ownedWinEffects: normalizeOwnedWinEffects(acc.ownedWinEffects),
+          equippedWinEffect: normalizeEquippedWinEffect(
+            acc.equippedWinEffect,
+            normalizeOwnedWinEffects(acc.ownedWinEffects)
+          ),
+          skillMastery: normalizeSkillMastery(acc.skillMastery),
           createdAt: new Date(acc.createdAt),
           updatedAt: new Date(acc.updatedAt),
         });

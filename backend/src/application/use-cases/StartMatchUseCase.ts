@@ -58,21 +58,55 @@ export class StartMatchUseCase {
         player.ownedItems = player.isBot ? ['ICED_TEA', 'INCENSE_BOWL'] : [];
         player.skillMastery = createDefaultSkillMastery();
         player.itemsState = createInitialItemsState();
+
+        // Consume 1 charge from each equipped skill in the player's shop inventory (max 3)
+        if (!player.isBot) {
+          const acc = await this.accountRepo.findById(player.accountId);
+          if (acc) {
+            const loadedSkills: typeof player.equippedSkills = [];
+            for (const skill of (acc.equippedSkills ?? []).slice(0, 3)) {
+              if ((acc.skillInventory[skill] ?? 0) > 0) {
+                acc.skillInventory[skill] -= 1;
+                loadedSkills.push(skill);
+              }
+            }
+            player.equippedSkills = loadedSkills;
+            await this.accountRepo.update(acc);
+          } else {
+            player.equippedSkills = [];
+          }
+        } else {
+          player.equippedSkills = [];
+        }
+
         if (player.chips <= 0) {
           player.chips = 10000;
         }
       }
     }
 
-    // Update elimination status, cooldowns, and loan interest for the new hand
+    // Update elimination status, incense burn-out, and loan interest for the new hand
     for (const player of room.players) {
-      // Tick item cooldowns & lock timers
-      if (player.itemsState.incenseCooldownHands > 0) {
-        player.itemsState.incenseCooldownHands -= 1;
+      player.itemsState.icedTeaUsedThisRound = false;
+
+      // Burn out incense sticks after 4 consecutive hands without lighting a new stick
+      if (
+        !isFreshMatch &&
+        room.handNumber > 0 &&
+        player.ownedItems.includes('INCENSE_BOWL') &&
+        player.itemsState.incenseSticks > 0
+      ) {
+        player.itemsState.incenseHandsIdle += 1;
+        if (player.itemsState.incenseHandsIdle >= 4) {
+          player.itemsState.incenseSticks = 0;
+          player.itemsState.incenseHandsIdle = 0;
+          appendRoomLog(
+            room,
+            `🪔 Bát hương của ${player.displayName} đã cháy hết (4 lượt không thắp thêm) — thắp lại tốn 100 Vía!`
+          );
+        }
       }
-      if (player.itemsState.icedTeaCooldownHands > 0) {
-        player.itemsState.icedTeaCooldownHands -= 1;
-      }
+
       if (player.itemsState.lockedItemHandsLeft > 0) {
         player.itemsState.lockedItemHandsLeft -= 1;
         if (player.itemsState.lockedItemHandsLeft === 0) {
@@ -80,10 +114,18 @@ export class StartMatchUseCase {
         }
       }
 
-      // Accrue interest on active loan
+      // Accrue interest on active loan & persist updated loanBalance to Account
       if (player.activeLoan && room.handNumber > 0) {
         const { updatedLoan, isOverdue } = accrueLoanForNextHand(player.activeLoan);
         player.activeLoan = updatedLoan;
+
+        if (!player.isBot) {
+          const acc = await this.accountRepo.findById(player.accountId);
+          if (acc) {
+            acc.loanBalance = updatedLoan.currentOwed;
+            await this.accountRepo.update(acc);
+          }
+        }
 
         if (isOverdue) {
           player.statusEffects.debtPressure = true;
@@ -133,8 +175,14 @@ export class StartMatchUseCase {
         }
       }
 
-      if (player.chips <= 0 || player.timedOut || player.timeBankSeconds <= 0) {
+      if (player.chips <= 0) {
         player.eliminated = true;
+      } else {
+        // Every new hand restores full 3-minute (180s) hand time bank!
+        player.timeBankSeconds = INITIAL_TIME_BANK_SECONDS;
+        player.turnRemainingSeconds = TURN_TIME_LIMIT_SECONDS;
+        player.timedOut = false;
+        player.eliminated = false;
       }
     }
 
@@ -144,16 +192,9 @@ export class StartMatchUseCase {
       room.status = 'FINISHED';
       room.phase = 'WAITING';
       room.currentTurnIndex = -1;
-      appendRoomLog(room, 'Trận đấu kết thúc — bấm "CHƠI TRẬN MỚI" để reset thời gian 05:00!');
+      appendRoomLog(room, 'Trận đấu kết thúc — bấm "CHƠI TRẬN MỚI" để bắt đầu lại!');
       await this.roomRepo.save(room);
       return { room, events };
-    }
-
-    // Grant +15s time-bank recovery (up to 300s) for surviving players on each new hand
-    if (!isFreshMatch && room.handNumber > 0) {
-      for (const p of activePlayers) {
-        p.timeBankSeconds = Math.min(INITIAL_TIME_BANK_SECONDS, p.timeBankSeconds + 15);
-      }
     }
 
     // Increment match counter on first hand

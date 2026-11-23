@@ -59,8 +59,14 @@ export function MiniGameOverlay({
             >
               {lastResult.success
                 ? lastResult.skillType === 'PRESSURE_AURA'
-                  ? 'SÓNG KHÍ THẾ ĐÁNH TRÚNG! (-10s ĐỐI THỦ)'
-                  : 'TUYỆT KỸ THÀNH CÔNG!'
+                  ? 'SÓNG KHÍ THẾ ĐÁNH TRÚNG! (-10S ĐỐI THỦ)'
+                  : lastResult.skillType === 'VIA_SIPHON'
+                    ? 'HÚT VÍA THÀNH CÔNG! (+VÍA CHO BẠN)'
+                    : lastResult.skillType === 'TIME_FREEZE'
+                      ? 'NGƯNG ĐỌNG THÀNH CÔNG! (+15S QUỸ · +10S LƯỢT)'
+                      : lastResult.skillType === 'POKER_FACE'
+                        ? 'MẶT LẠNH TĨNH TÂM! (GỠ ÁP LỰC & PHÒNG THỦ)'
+                        : 'TUYỆT KỸ THÀNH CÔNG!'
                 : lastResult.mangoShieldBlocked
                   ? 'QUẢ XOÀI ĐÃ ĐỠ HỘ! (CHẶN LỘ TẨY)'
                   : 'LỘ TẨY! 1 LÁ BÀI ĐÃ BỊ LẬT NGỬA'}

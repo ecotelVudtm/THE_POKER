@@ -1,13 +1,22 @@
 import { FormEvent, useState } from 'react';
-import { Account } from '../../types/game';
+import { Account, SkillType, SkinId, WinEffectId } from '../../types/game';
+import { MAX_EQUIPPED_SKILLS, SKILL_CATALOG_BY_TYPE } from '../../utils/skillCatalog';
 import { VoxelIcon3D } from '../VoxelIcon3D';
 import { GuideBookModal } from '../GuideBookModal';
+import { SkillShopModal } from '../SkillShopModal';
 
 export interface LobbyViewProps {
   account: Account | null;
   onLogin: (username: string, password: string) => Promise<Account>;
   onRegister: (username: string, password: string, displayName?: string) => Promise<Account>;
   onLogout: () => void;
+  onRepayLoan: () => Promise<void>;
+  onBuySkill: (skillType: SkillType, quantity?: number) => Promise<void>;
+  onUpdateLoadout: (equippedSkills: SkillType[]) => Promise<void>;
+  onBuySkin: (skinId: SkinId) => Promise<void>;
+  onEquipSkin: (skinId: SkinId) => Promise<void>;
+  onBuyWinEffect: (effectId: WinEffectId) => Promise<void>;
+  onEquipWinEffect: (effectId: WinEffectId) => Promise<void>;
   onCreateBotRoom: () => void;
   onCreateOnlineRoom: () => void;
   onJoinRoom: (roomId: string) => void;
@@ -18,6 +27,13 @@ export function LobbyView({
   onLogin,
   onRegister,
   onLogout,
+  onRepayLoan,
+  onBuySkill,
+  onUpdateLoadout,
+  onBuySkin,
+  onEquipSkin,
+  onBuyWinEffect,
+  onEquipWinEffect,
   onCreateBotRoom,
   onCreateOnlineRoom,
   onJoinRoom,
@@ -29,6 +45,7 @@ export function LobbyView({
   const [roomCode, setRoomCode] = useState('');
   const [joinOpen, setJoinOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,6 +94,28 @@ export function LobbyView({
               </span>
             </div>
 
+            {/* Persistent Loan Balance Column (carries outside the table!) */}
+            <div className="flex items-center gap-1.5 border-l-2 border-border-subtle pl-3">
+              <VoxelIcon3D kind="phone" size={18} title="Khoản vay hiện tại" />
+              <span
+                className={`font-mono font-extrabold ${(account.loanBalance ?? 0) > 0
+                  ? 'text-status-warning'
+                  : 'text-content-muted'
+                  }`}
+              >
+                VAY: {(account.loanBalance ?? 0).toLocaleString()}
+              </span>
+              {(account.loanBalance ?? 0) > 0 && account.chips >= account.loanBalance && (
+                <button
+                  type="button"
+                  onClick={() => void onRepayLoan()}
+                  className="voxel-btn ml-1 border border-accent-jade bg-accent-jade px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-content-inverse"
+                >
+                  TRẢ NỢ
+                </button>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={onLogout}
@@ -96,13 +135,15 @@ export function LobbyView({
           </p>
         </div>
 
+        {/* Standalone 3D Voxel Guide Book: hover swings open the cover, click opens popup! */}
         <button
           type="button"
           onClick={() => setGuideOpen(true)}
-          className="voxel-btn pointer-events-auto absolute right-0 top-0 flex items-center gap-2 border-2 border-border-gold bg-surface-panel px-3.5 py-2 font-mono text-xs font-extrabold text-accent-gold"
+          title="Sổ Tay Thần Bài"
+          aria-label="Mở Sổ Tay Thần Bài"
+          className="pointer-events-auto absolute right-1 top-0 bg-transparent p-1 transition-transform hover:-translate-y-1"
         >
-          <VoxelIcon3D kind="book" size={18} title="Mở Sổ Tay Thần Bài" />
-          SỔ TAY HƯỚNG DẪN
+          <VoxelIcon3D kind="book" size={44} title="Sổ Tay Thần Bài" openOnHover />
         </button>
       </div>
 
@@ -117,11 +158,10 @@ export function LobbyView({
                   setAuthTab('login');
                   setError(null);
                 }}
-                className={`pb-2.5 font-mono text-xs font-extrabold tracking-widest transition ${
-                  authTab === 'login'
-                    ? 'border-b-4 border-accent-gold text-accent-gold'
-                    : 'text-content-muted hover:text-content-primary'
-                }`}
+                className={`pb-2.5 font-mono text-xs font-extrabold tracking-widest transition ${authTab === 'login'
+                  ? 'border-b-4 border-accent-gold text-accent-gold'
+                  : 'text-content-muted hover:text-content-primary'
+                  }`}
               >
                 ĐĂNG NHẬP
               </button>
@@ -131,11 +171,10 @@ export function LobbyView({
                   setAuthTab('register');
                   setError(null);
                 }}
-                className={`pb-2.5 font-mono text-xs font-extrabold tracking-widest transition ${
-                  authTab === 'register'
-                    ? 'border-b-4 border-accent-gold text-accent-gold'
-                    : 'text-content-muted hover:text-content-primary'
-                }`}
+                className={`pb-2.5 font-mono text-xs font-extrabold tracking-widest transition ${authTab === 'register'
+                  ? 'border-b-4 border-accent-gold text-accent-gold'
+                  : 'text-content-muted hover:text-content-primary'
+                  }`}
               >
                 ĐĂNG KÝ
               </button>
@@ -236,6 +275,30 @@ export function LobbyView({
                 </button>
               </form>
             )}
+
+            <button
+              type="button"
+              onClick={() => setShopOpen(true)}
+              className="voxel-btn flex w-full items-center justify-center gap-2 border-2 border-border-gold bg-surface-panel py-3 font-mono text-xs font-extrabold tracking-widest text-accent-gold"
+            >
+              <span>CỬA HÀNG &amp; TRANG BỊ</span>
+              <span className="border border-border-gold/60 bg-surface-canvas px-1.5 py-0.5 text-[10px] text-accent-gold">
+                {(account.equippedSkills ?? []).length}/{MAX_EQUIPPED_SKILLS}
+              </span>
+            </button>
+
+            {(account.equippedSkills ?? []).length > 0 && (
+              <div className="flex flex-wrap justify-center gap-1.5 font-mono text-[10px]">
+                {account.equippedSkills.map((sk) => (
+                  <span
+                    key={sk}
+                    className="border border-border-gold/50 bg-surface-canvas/85 px-2 py-0.5 font-bold text-content-secondary"
+                  >
+                    {SKILL_CATALOG_BY_TYPE[sk]?.title ?? sk} (x{account.skillInventory?.[sk] ?? 0})
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -246,6 +309,20 @@ export function LobbyView({
       </div>
 
       <GuideBookModal open={guideOpen} onClose={() => setGuideOpen(false)} />
+
+      {account && (
+        <SkillShopModal
+          open={shopOpen}
+          account={account}
+          onClose={() => setShopOpen(false)}
+          onBuySkill={onBuySkill}
+          onUpdateLoadout={onUpdateLoadout}
+          onBuySkin={onBuySkin}
+          onEquipSkin={onEquipSkin}
+          onBuyWinEffect={onBuyWinEffect}
+          onEquipWinEffect={onEquipWinEffect}
+        />
+      )}
     </div>
   );
 }

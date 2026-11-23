@@ -1,4 +1,13 @@
-import { Account } from '../../domain/entities/Account';
+import {
+  Account,
+  createDefaultEquippedSkills,
+  normalizeEquippedSkin,
+  normalizeEquippedWinEffect,
+  normalizeOwnedSkins,
+  normalizeOwnedWinEffects,
+  normalizeSkillInventory,
+  normalizeSkillMastery,
+} from '../../domain/entities/Account';
 import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
 import { AccountDocument, AccountModel } from '../database/models/AccountModel';
 
@@ -10,12 +19,20 @@ export class MongoAccountRepository implements IAccountRepository {
       displayName: doc.displayName,
       passwordHash: doc.passwordHash,
       chips: doc.chips,
+      loanBalance: doc.loanBalance ?? 0,
       ownedItems: Array.isArray(doc.ownedItems) ? [...doc.ownedItems] : [],
-      skillMastery: {
-        sleightOfHand: { ...doc.skillMastery.sleightOfHand },
-        eagleEye: { ...doc.skillMastery.eagleEye },
-        pressureAura: { ...doc.skillMastery.pressureAura },
-      },
+      skillInventory: normalizeSkillInventory(doc.skillInventory),
+      equippedSkills: Array.isArray(doc.equippedSkills)
+        ? [...doc.equippedSkills]
+        : createDefaultEquippedSkills(),
+      ownedSkins: normalizeOwnedSkins(doc.ownedSkins),
+      equippedSkin: normalizeEquippedSkin(doc.equippedSkin, normalizeOwnedSkins(doc.ownedSkins)),
+      ownedWinEffects: normalizeOwnedWinEffects(doc.ownedWinEffects),
+      equippedWinEffect: normalizeEquippedWinEffect(
+        doc.equippedWinEffect,
+        normalizeOwnedWinEffects(doc.ownedWinEffects)
+      ),
+      skillMastery: normalizeSkillMastery(doc.skillMastery),
       debtHistory: doc.debtHistory.map((d) => ({
         loanId: d.loanId,
         packageType: d.packageType,
@@ -58,7 +75,14 @@ export class MongoAccountRepository implements IAccountRepository {
       {
         displayName: account.displayName,
         chips: account.chips,
+        loanBalance: account.loanBalance,
         ownedItems: account.ownedItems,
+        skillInventory: account.skillInventory,
+        equippedSkills: account.equippedSkills,
+        ownedSkins: account.ownedSkins,
+        equippedSkin: account.equippedSkin,
+        ownedWinEffects: account.ownedWinEffects,
+        equippedWinEffect: account.equippedWinEffect,
         skillMastery: account.skillMastery,
         debtHistory: account.debtHistory,
         stats: account.stats,

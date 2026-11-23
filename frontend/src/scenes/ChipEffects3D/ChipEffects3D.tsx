@@ -6,6 +6,7 @@ import { FilteredRoomState, HandWinner } from '../../types/game';
 import { soundEngine } from '../../services/soundEngine';
 import { breakDownChips, CHIP_DENOMINATIONS } from '../../utils/chipDenominations';
 import { getVoxelChipGeometry } from '../ChipStack3D';
+import { WinEffects3D } from '../WinEffects3D';
 
 export interface SeatPositionMap {
   [accountId: string]: {
@@ -313,6 +314,7 @@ export function ChipEffects3D({ room, seatMap }: ChipEffects3DProps) {
     ) {
       seatBetStackCountRef.current.clear();
       prevBetsRef.current.clear();
+      soundEngine.playPotSweep();
       setTableChips((prev) => {
         const combined = [...prev, ...newlyTossed];
         return combined.map((c, idx) => {
@@ -345,8 +347,12 @@ export function ChipEffects3D({ room, seatMap }: ChipEffects3DProps) {
       lastWinHandRef.current !== room.handNumber
     ) {
       lastWinHandRef.current = room.handNumber;
-      soundEngine.playChipClink();
+      soundEngine.playPotSweep();
       const winners = room.lastWinners;
+      const firstWinnerPlayer = room.players.find((p) => p.accountId === winners[0]?.accountId);
+      if (firstWinnerPlayer?.equippedWinEffect && firstWinnerPlayer.equippedWinEffect !== 'NONE') {
+        soundEngine.playWinEffectSound(firstWinnerPlayer.equippedWinEffect);
+      }
 
       setTableChips((prev) => {
         const allOnTable = [...prev, ...newlyTossed];
@@ -374,6 +380,13 @@ export function ChipEffects3D({ room, seatMap }: ChipEffects3DProps) {
     }
   }, [room.handNumber, room.lastWinners, room.phase, room.players, seatMap]);
 
+  const primaryWinnerEffect = useMemo(() => {
+    if (room.phase !== 'SHOWDOWN' || room.lastWinners.length === 0) return 'NONE' as const;
+    const firstWinner = room.lastWinners[0];
+    const winnerPlayer = room.players.find((p) => p.accountId === firstWinner.accountId);
+    return winnerPlayer?.equippedWinEffect ?? 'NONE';
+  }, [room.lastWinners, room.phase, room.players]);
+
   return (
     <group>
       {tableChips.map((chip) => (
@@ -381,10 +394,16 @@ export function ChipEffects3D({ room, seatMap }: ChipEffects3DProps) {
       ))}
 
       {room.phase === 'SHOWDOWN' && room.lastWinners.length > 0 && (
-        <RisingWinnerBanner3D
-          winners={room.lastWinners}
-          handKey={`${room.id}_${room.handNumber}`}
-        />
+        <>
+          <WinEffects3D
+            effectId={primaryWinnerEffect}
+            handKey={`${room.id}_${room.handNumber}`}
+          />
+          <RisingWinnerBanner3D
+            winners={room.lastWinners}
+            handKey={`${room.id}_${room.handNumber}`}
+          />
+        </>
       )}
     </group>
   );

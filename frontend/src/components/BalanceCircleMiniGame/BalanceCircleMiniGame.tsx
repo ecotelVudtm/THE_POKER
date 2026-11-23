@@ -6,22 +6,31 @@ export interface BalanceCircleMiniGameProps {
   onSubmit: (payload: MiniGameSubmissionPayload) => void;
 }
 
-const HOLD_DURATION_MS = 2500;
+const TRACK_DURATION_MS = 2500;
+const ARENA_SIZE = 220;
 
+/**
+ * Cursor-Tracking Moving Box Mini-Game (Tâm Nhãn Đọc Vị):
+ * The glowing target square continuously glides around the arena;
+ * the player holds & moves their mouse/finger to keep the cursor inside the moving box for 2.5s!
+ */
 export function BalanceCircleMiniGame({
   challenge,
   onSubmit,
 }: BalanceCircleMiniGameProps) {
-  const [dotPos, setDotPos] = useState({ x: 0, y: 0 }); // normalized -1..1
-  const [holding, setHolding] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
-  const [inside, setInside] = useState(true);
+  const [inside, setInside] = useState(false);
 
-  const holdingRef = useRef(false);
+  const arenaRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const cursorDotRef = useRef<HTMLDivElement>(null);
+
+  const pointerPosRef = useRef({ x: ARENA_SIZE / 2, y: ARENA_SIZE / 2, active: false });
   const submittedRef = useRef(false);
   const samplesRef = useRef<number[]>([]);
 
   const maxAllowedRadius = Math.min(0.9, challenge.params.zoneWidth * 1.6);
+  const boxSizePx = Math.max(54, Math.min(96, Math.round(maxAllowedRadius * 115)));
 
   const finishAndSubmit = useCallback(() => {
     if (submittedRef.current) return;
@@ -29,55 +38,67 @@ export function BalanceCircleMiniGame({
     const samples = samplesRef.current;
     onSubmit({
       challengeId: challenge.challengeId,
-      balanceSamples: samples.length >= 3 ? samples : [0.95, 0.95, 0.95],
+      balanceSamples: samples.length >= 3 ? samples : [1, 1, 1],
     });
   }, [challenge.challengeId, onSubmit]);
+
+  const updatePointer = (clientX: number, clientY: number) => {
+    const rect = arenaRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.max(0, Math.min(ARENA_SIZE, clientX - rect.left));
+    const y = Math.max(0, Math.min(ARENA_SIZE, clientY - rect.top));
+    pointerPosRef.current = { x, y, active: true };
+    if (cursorDotRef.current) {
+      cursorDotRef.current.style.left = `${x}px`;
+      cursorDotRef.current.style.top = `${y}px`;
+    }
+  };
 
   useEffect(() => {
     let rafId = 0;
     const startTs = performance.now();
-    let x = 0.05;
-    let y = 0.05;
-    let vx = 0.2;
-    let vy = -0.15;
-    let lastTs = startTs;
     let lastSampleTs = startTs;
-    const driftStrength = 1.15 * challenge.params.speedMultiplier;
+    let lastUiTs = startTs;
+    const speed = challenge.params.speedMultiplier * 1.15;
+    const travelRadius = (ARENA_SIZE - boxSizePx) / 2 - 8;
 
     const loop = (now: number) => {
       if (submittedRef.current) return;
-      const dt = Math.min(0.05, (now - lastTs) / 1000);
-      lastTs = now;
       const elapsed = now - startTs;
+      const t = (elapsed / 1000) * speed;
 
-      // Smooth pseudo-random turbulence pushing the dot outward
-      const angle = elapsed * 0.0032 * challenge.params.speedMultiplier;
-      const fx = Math.cos(angle * 1.7) * driftStrength + Math.sin(angle * 0.9) * 0.55;
-      const fy = Math.sin(angle * 1.3) * driftStrength + Math.cos(angle * 1.1) * 0.55;
+      // Smooth figure-eight / Lissajous wandering path for the moving target box
+      const bx = ARENA_SIZE / 2 + Math.sin(t * 1.5) * travelRadius;
+      const by = ARENA_SIZE / 2 + Math.cos(t * 1.15) * travelRadius * 0.85;
 
-      // When holding mouse/Space, apply strong centering focus pull
-      const pull = holdingRef.current ? 4.4 : 0.35;
-      vx += (fx - x * pull) * dt;
-      vy += (fy - y * pull) * dt;
+      if (boxRef.current) {
+        boxRef.current.style.left = `${bx}px`;
+        boxRef.current.style.top = `${by}px`;
+      }
 
-      // Damping
-      vx *= 0.92;
-      vy *= 0.92;
+      const ptr = pointerPosRef.current;
+      const dx = Math.abs(ptr.x - bx);
+      const dy = Math.abs(ptr.y - by);
+      const halfBox = boxSizePx / 2;
+      const isInsideBox = ptr.active && dx <= halfBox && dy <= halfBox;
 
-      x = Math.max(-0.98, Math.min(0.98, x + vx * dt));
-      y = Math.max(-0.98, Math.min(0.98, y + vy * dt));
-
-      const dist = Math.min(1, Math.hypot(x, y));
-      setDotPos({ x, y });
-      setInside(dist <= maxAllowedRadius);
-      setProgressPct(Math.min(100, (elapsed / HOLD_DURATION_MS) * 100));
+      // Normalized distance: <= maxAllowedRadius when inside the moving box
+      const normDist = isInsideBox
+        ? Math.min(maxAllowedRadius * 0.8, (Math.hypot(dx, dy) / halfBox) * maxAllowedRadius)
+        : 0.98;
 
       if (now - lastSampleTs >= 100) {
         lastSampleTs = now;
-        samplesRef.current.push(Number(dist.toFixed(3)));
+        samplesRef.current.push(Number(normDist.toFixed(3)));
       }
 
-      if (elapsed >= HOLD_DURATION_MS || Date.now() >= challenge.expiresAt - 150) {
+      if (now - lastUiTs >= 50) {
+        lastUiTs = now;
+        setInside(isInsideBox);
+        setProgressPct(Math.min(100, (elapsed / TRACK_DURATION_MS) * 100));
+      }
+
+      if (elapsed >= TRACK_DURATION_MS || Date.now() >= challenge.expiresAt - 150) {
         finishAndSubmit();
         return;
       }
@@ -87,32 +108,7 @@ export function BalanceCircleMiniGame({
 
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [challenge.expiresAt, challenge.params.speedMultiplier, finishAndSubmit, maxAllowedRadius]);
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        holdingRef.current = true;
-        setHolding(true);
-      }
-    };
-    const up = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        holdingRef.current = false;
-        setHolding(false);
-      }
-    };
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    return () => {
-      window.removeEventListener('keydown', down);
-      window.removeEventListener('keyup', up);
-    };
-  }, []);
-
-  const ringRadiusPx = Math.round(maxAllowedRadius * 82);
+  }, [boxSizePx, challenge.expiresAt, challenge.params.speedMultiplier, finishAndSubmit, maxAllowedRadius]);
 
   return (
     <div className="voxel-panel w-full max-w-md border-accent-via p-6">
@@ -124,57 +120,41 @@ export function BalanceCircleMiniGame({
       </div>
 
       <p className="mt-1 text-xs text-content-secondary">
-        Giữ chuột hoặc phím{' '}
-        <kbd className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">
-          Space
-        </kbd>{' '}
-        để giữ khối sáng trong ô chuẩn suốt 2.5 giây!
+        Giữ và di chuột bám sát bên trong <strong>ô vuông đang di chuyển</strong> suốt 2.5 giây!
       </p>
 
-      {/* Square Voxel Balance Arena */}
+      {/* Moving Target Box Arena */}
       <div
-        onMouseDown={() => {
-          holdingRef.current = true;
-          setHolding(true);
-        }}
-        onMouseUp={() => {
-          holdingRef.current = false;
-          setHolding(false);
-        }}
-        onMouseLeave={() => {
-          holdingRef.current = false;
-          setHolding(false);
-        }}
-        onTouchStart={() => {
-          holdingRef.current = true;
-          setHolding(true);
-        }}
-        onTouchEnd={() => {
-          holdingRef.current = false;
-          setHolding(false);
-        }}
-        className="relative mx-auto mt-5 flex h-44 w-44 cursor-pointer select-none items-center justify-center border-2 border-border-subtle bg-surface-canvas"
+        ref={arenaRef}
+        onPointerMove={(e) => updatePointer(e.clientX, e.clientY)}
+        onPointerDown={(e) => updatePointer(e.clientX, e.clientY)}
+        onPointerEnter={(e) => updatePointer(e.clientX, e.clientY)}
+        className="relative mx-auto mt-5 cursor-crosshair select-none overflow-hidden border-2 border-border-subtle bg-surface-canvas"
+        style={{ width: ARENA_SIZE, height: ARENA_SIZE }}
       >
+        {/* Moving Target Box */}
         <div
-          className={`border-2 transition-colors ${
+          ref={boxRef}
+          className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 border-2 transition-colors ${
             inside
-              ? 'border-accent-jade bg-accent-jade/15'
-              : 'border-status-danger bg-status-danger/15'
+              ? 'border-accent-jade bg-accent-jade/25'
+              : 'border-accent-via bg-accent-via/15'
           }`}
           style={{
-            width: `${ringRadiusPx * 2}px`,
-            height: `${ringRadiusPx * 2}px`,
+            width: boxSizePx,
+            height: boxSizePx,
+            left: ARENA_SIZE / 2,
+            top: ARENA_SIZE / 2,
           }}
         />
 
+        {/* Player Cursor Indicator */}
         <div
-          className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 ${
-            inside ? 'bg-accent-via' : 'bg-status-danger'
+          ref={cursorDotRef}
+          className={`pointer-events-none absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 border border-content-primary ${
+            inside ? 'bg-accent-jade' : 'bg-status-warning'
           }`}
-          style={{
-            left: `${50 + dotPos.x * 46}%`,
-            top: `${50 + dotPos.y * 46}%`,
-          }}
+          style={{ left: ARENA_SIZE / 2, top: ARENA_SIZE / 2 }}
         />
       </div>
 
@@ -186,7 +166,7 @@ export function BalanceCircleMiniGame({
       </div>
 
       <div className="mt-3 text-center font-mono text-xs font-semibold text-content-secondary">
-        {holding ? 'ĐANG TỤ THẦN...' : 'GIỮ CHUỘT HOẶC PHÍM SPACE'}
+        {inside ? 'ĐANG BÁM CHUẨN TÂM!' : 'DI CHUỘT VÀO Ô VUÔNG ĐANG CHẠY'}
       </div>
     </div>
   );
