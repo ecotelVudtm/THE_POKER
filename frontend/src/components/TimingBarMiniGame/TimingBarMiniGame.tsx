@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Shuffle } from 'lucide-react';
 import { MiniGameChallenge, MiniGameSubmissionPayload } from '../../types/game';
 
 export interface TimingBarMiniGameProps {
@@ -66,23 +65,20 @@ export function TimingBarMiniGame({ challenge, onSubmit }: TimingBarMiniGameProp
   const timePct = Math.min(100, (remainingMs / 6000) * 100);
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-border-gold bg-surface-panel/95 p-6 shadow-warm backdrop-blur-md">
+    <div className="voxel-panel-gold w-full max-w-md p-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-accent-gold">
-          <Shuffle className="h-5 w-5" />
-          <h3 className="text-base font-extrabold">Tráo Bài Tay Áo</h3>
-        </div>
+        <h3 className="font-mono text-base font-extrabold text-accent-gold">TRÁO BÀI TAY ÁO</h3>
         <span className="font-mono text-xs font-bold text-status-warning">
           {(remainingMs / 1000).toFixed(1)}s
         </span>
       </div>
 
       <p className="mt-1 text-xs text-content-secondary">
-        Bấm <kbd className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">Space</kbd> hoặc nút bên dưới khi kim chạy vào vùng xanh!
+        Bấm <kbd className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">Space</kbd> hoặc nút bên dưới khi kim chạy vào vùng xanh!
       </p>
 
       {/* Remaining time bar */}
-      <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-surface-canvas">
+      <div className="mt-3 h-1.5 w-full bg-surface-canvas">
         <div
           className="h-full bg-status-warning transition-none"
           style={{ width: `${timePct}%` }}
@@ -90,7 +86,7 @@ export function TimingBarMiniGame({ challenge, onSubmit }: TimingBarMiniGameProp
       </div>
 
       {/* Timing Bar Track */}
-      <div className="relative mt-6 h-12 w-full overflow-hidden rounded-xl border border-border-subtle bg-surface-canvas">
+      <div className="relative mt-6 h-12 w-full overflow-hidden border-2 border-border-subtle bg-surface-canvas">
         {/* Success Green Zone */}
         <div
           className="absolute inset-y-0 border-x-2 border-accent-jade bg-accent-jade/30"
@@ -106,7 +102,7 @@ export function TimingBarMiniGame({ challenge, onSubmit }: TimingBarMiniGameProp
         />
         {/* Moving Needle */}
         <div
-          className="absolute inset-y-0 w-1.5 -translate-x-1/2 rounded-full bg-accent-gold shadow-goldGlow"
+          className="absolute inset-y-0 w-2 -translate-x-1/2 bg-accent-gold"
           style={{ left: `${cursor * 100}%` }}
         />
       </div>
@@ -114,9 +110,9 @@ export function TimingBarMiniGame({ challenge, onSubmit }: TimingBarMiniGameProp
       <button
         type="button"
         onClick={lockCursor}
-        className="mt-5 w-full rounded-xl bg-accent-gold px-4 py-3 text-sm font-extrabold text-content-inverse shadow-goldGlow transition hover:brightness-110 active:scale-[0.99]"
+        className="voxel-btn mt-5 w-full border-2 border-border-gold bg-accent-gold px-4 py-3 font-mono text-sm font-extrabold text-content-inverse"
       >
-        Tráo ngay! (Space)
+        TRÁO NGAY! (SPACE)
       </button>
     </div>
   );

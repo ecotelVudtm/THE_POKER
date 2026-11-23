@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ItemType, PublicPlayerView } from '../../types/game';
 import { SCENE_TOKENS } from '../../styles/themeTokens';
+import { getCeramicBowlTexture, getPhoneScreenTexture } from '../ProceduralTextures';
 
 export interface TableItems3DProps {
   me: PublicPlayerView | null;
@@ -20,52 +21,88 @@ interface ItemMeta {
 const ITEMS_LAYOUT: ItemMeta[] = [
   {
     type: 'PHONE',
-    title: 'Chiếc Điện Thoại',
-    desc: 'Vay nóng Chip (2000/5000) hoặc mua +60s thời gian. Lãi 15%/ván.',
-    position: [-3.55, 0.08, 2.35],
+    title: 'Điện Thoại Vay Nóng',
+    desc: 'Vay 2K/5K Chip hoặc +60s • Lãi 15%/ván',
+    position: [-4.35, 0.07, 2.75],
   },
   {
     type: 'INCENSE_BOWL',
     title: 'Bát Hương Mini',
-    desc: '20 Vía • Hồi 2 ván. Nới rộng vùng Mini-game +20% & tăng nhẹ vận may.',
-    position: [-2.45, 0.08, 2.7],
+    desc: '20 Vía • Hồi 2 ván • +20% vùng Mini-game',
+    position: [-3.0, 0.07, 3.1],
   },
   {
     type: 'LUCKY_MANGO',
     title: 'Quả Xoài May Mắn',
-    desc: '2 lần/trận. Xóa debuff & tạo Khiên chặn 1 lần bị Lộ Tẩy.',
-    position: [2.45, 0.08, 2.7],
+    desc: 'Xóa debuff • Khiên chặn 1 lần Lộ Tẩy',
+    position: [3.0, 0.07, 3.1],
   },
   {
     type: 'ICED_TEA',
     title: 'Ly Trà Đá',
-    desc: 'Hồi 2 ván. Cộng +20s quỹ thời gian & làm chậm Mini-game 15%.',
-    position: [3.45, 0.08, 2.42],
+    desc: 'Hồi 2 ván • +20s thời gian • Chậm Mini-game 15%',
+    position: [4.25, 0.07, 2.75],
   },
   {
     type: 'LUCKY_COIN',
-    title: 'Đồng Xu Hộ Mệnh (Bị động)',
-    desc: 'Tự hoàn 15% chip cược khi thua All-in với tỉ lệ thắng ban đầu < 25%.',
-    position: [4.25, 0.08, 1.95],
+    title: 'Đồng Xu Hộ Mệnh',
+    desc: 'Bị động • Hoàn 15% cược khi thua All-in < 25%',
+    position: [5.15, 0.07, 2.15],
   },
 ];
 
-function IncenseSmokeParticles({ active }: { active: boolean }) {
+/** Single unified stepped-zigzag polygon extrusion — ZERO overlapping faces! */
+function createSteppedDiscGeo(halfSize: number, step: number, height: number): THREE.ExtrudeGeometry {
+  const s = new THREE.Shape();
+  s.moveTo(-halfSize + step, -halfSize);
+  s.lineTo(halfSize - step, -halfSize);
+  s.lineTo(halfSize - step, -halfSize + step);
+  s.lineTo(halfSize, -halfSize + step);
+  s.lineTo(halfSize, halfSize - step);
+  s.lineTo(halfSize - step, halfSize - step);
+  s.lineTo(halfSize - step, halfSize);
+  s.lineTo(-halfSize + step, halfSize);
+  s.lineTo(-halfSize + step, halfSize - step);
+  s.lineTo(-halfSize, halfSize - step);
+  s.lineTo(-halfSize, -halfSize + step);
+  s.lineTo(-halfSize + step, -halfSize + step);
+  s.closePath();
+
+  const geo = new THREE.ExtrudeGeometry(s, { depth: height, bevelEnabled: false });
+  geo.rotateX(Math.PI / 2);
+  return geo;
+}
+
+let cachedItemGeos: {
+  bowlBelly: THREE.ExtrudeGeometry;
+  saucer: THREE.ExtrudeGeometry;
+} | null = null;
+
+function getItemGeometries() {
+  if (!cachedItemGeos) {
+    cachedItemGeos = {
+      bowlBelly: createSteppedDiscGeo(0.24, 0.07, 0.16),
+      saucer: createSteppedDiscGeo(0.28, 0.08, 0.05),
+    };
+  }
+  return cachedItemGeos;
+}
+
+function VoxelSmokeParticles({ active }: { active: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame(({ clock }) => {
     if (!groupRef.current || !active) return;
     const t = clock.getElapsedTime();
     groupRef.current.children.forEach((child, idx) => {
-      const cycle = (t * 0.65 + idx * 0.27) % 1;
-      child.position.y = 0.42 + cycle * 1.15;
-      child.position.x = Math.sin(t * 2 + idx * 1.4) * 0.09 * cycle;
-      child.position.z = Math.cos(t * 1.7 + idx) * 0.06 * cycle;
-      const s = 0.4 + cycle * 0.9;
+      const cycle = (t * 0.55 + idx * 0.24) % 1;
+      child.position.y = 0.56 + cycle * 1.25;
+      child.position.x = Math.round(Math.sin(t * 2 + idx) * 2) * 0.04;
+      child.position.z = Math.round(Math.cos(t * 1.6 + idx) * 2) * 0.03;
+      const s = 0.5 + cycle * 0.9;
       child.scale.set(s, s, s);
       const mesh = child as THREE.Mesh;
-      const mat = mesh.material as THREE.MeshStandardMaterial;
-      mat.opacity = (1 - cycle) * 0.55;
+      (mesh.material as THREE.MeshStandardMaterial).opacity = (1 - cycle) * 0.6;
     });
   });
 
@@ -74,12 +111,12 @@ function IncenseSmokeParticles({ active }: { active: boolean }) {
   return (
     <group ref={groupRef}>
       {[0, 1, 2, 3, 4].map((i) => (
-        <mesh key={i} position={[0, 0.45, 0]}>
-          <sphereGeometry args={[0.06, 10, 10]} />
+        <mesh key={i} position={[0, 0.56, 0]}>
+          <boxGeometry args={[0.09, 0.09, 0.09]} />
           <meshStandardMaterial
             color={SCENE_TOKENS.items.incenseSmoke}
             transparent
-            opacity={0.45}
+            opacity={0.55}
             depthWrite={false}
           />
         </mesh>
@@ -88,23 +125,19 @@ function IncenseSmokeParticles({ active }: { active: boolean }) {
   );
 }
 
-interface InteractiveItemWrapperProps {
+interface InteractiveVoxelItemProps {
   meta: ItemMeta;
   statusNote: string;
-  isLocked: boolean;
-  isDisabled: boolean;
   onClick: () => void;
   children: (hovered: boolean) => React.ReactNode;
 }
 
-function InteractiveItemWrapper({
+function InteractiveVoxelItem({
   meta,
   statusNote,
-  isLocked,
-  isDisabled,
   onClick,
   children,
-}: InteractiveItemWrapperProps) {
+}: InteractiveVoxelItemProps) {
   const [hovered, setHovered] = useState(false);
   const groupRef = useRef<THREE.Group>(null);
 
@@ -114,7 +147,7 @@ function InteractiveItemWrapper({
     groupRef.current.position.y = THREE.MathUtils.lerp(
       groupRef.current.position.y,
       targetY,
-      Math.min(1, delta * 10)
+      Math.min(1, delta * 12)
     );
   });
 
@@ -138,38 +171,34 @@ function InteractiveItemWrapper({
     >
       {children(hovered)}
 
-      {/* Hover glow ring under item */}
+      {/* Non-overlapping square selection frame */}
       {hovered && (
-        <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.32, 0.42, 24]} />
-          <meshBasicMaterial
-            color={SCENE_TOKENS.items.hoverEmissive}
-            transparent
-            opacity={0.75}
-          />
-        </mesh>
+        <group position={[0, 0.012, 0]}>
+          <mesh position={[0, 0, -0.34]}>
+            <boxGeometry args={[0.72, 0.02, 0.04]} />
+            <meshBasicMaterial color={SCENE_TOKENS.items.hoverEmissive} />
+          </mesh>
+          <mesh position={[0, 0, 0.34]}>
+            <boxGeometry args={[0.72, 0.02, 0.04]} />
+            <meshBasicMaterial color={SCENE_TOKENS.items.hoverEmissive} />
+          </mesh>
+          <mesh position={[-0.34, 0, 0]}>
+            <boxGeometry args={[0.04, 0.02, 0.64]} />
+            <meshBasicMaterial color={SCENE_TOKENS.items.hoverEmissive} />
+          </mesh>
+          <mesh position={[0.34, 0, 0]}>
+            <boxGeometry args={[0.04, 0.02, 0.64]} />
+            <meshBasicMaterial color={SCENE_TOKENS.items.hoverEmissive} />
+          </mesh>
+        </group>
       )}
 
-      {/* Vietnamese Tooltip */}
       {hovered && (
-        <Html position={[0, 0.95, 0]} center distanceFactor={11} style={{ pointerEvents: 'none' }}>
-          <div className="w-56 rounded-xl border border-border-gold/60 bg-surface-panel/95 p-2.5 text-left shadow-warm backdrop-blur-md">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-accent-gold">{meta.title}</span>
-              {isLocked && (
-                <span className="rounded bg-status-danger/20 px-1.5 py-0.5 text-[10px] font-semibold text-status-danger">
-                  BỊ KHÓA
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-[11px] leading-snug text-content-secondary">{meta.desc}</p>
-            <div
-              className={`mt-1.5 text-[10px] font-semibold ${
-                isLocked || isDisabled ? 'text-status-warning' : 'text-accent-jade'
-              }`}
-            >
-              {statusNote}
-            </div>
+        <Html position={[0, 0.96, 0]} center distanceFactor={11} style={{ pointerEvents: 'none' }}>
+          <div className="voxel-panel w-52 px-3 py-2 text-left">
+            <div className="text-xs font-extrabold text-accent-gold">{meta.title}</div>
+            <div className="mt-0.5 text-[11px] text-content-secondary">{meta.desc}</div>
+            <div className="mt-1 font-mono text-[10px] font-bold text-accent-jade">{statusNote}</div>
           </div>
         </Html>
       )}
@@ -177,318 +206,271 @@ function InteractiveItemWrapper({
   );
 }
 
-export function TableItems3D({ me, onUseItem }: TableItems3DProps) {
-  const phoneScreenRef = useRef<THREE.MeshStandardMaterial>(null);
+export const TableItems3D = memo(function TableItems3D({ me, onUseItem }: TableItems3DProps) {
+  const { bowlBelly, saucer } = useMemo(() => getItemGeometries(), []);
+  const bowlTex = useMemo(() => getCeramicBowlTexture(), []);
+  const hasDebt = Boolean(me?.activeLoan || me?.statusEffects.debtPressure);
+  const phoneScreenTex = useMemo(() => getPhoneScreenTexture(hasDebt), [hasDebt]);
+  const phoneScreenMatRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  const hasDebt = Boolean(me?.activeLoan);
-  const hasDebtPressure = Boolean(me?.statusEffects.debtPressure);
   const isBlessed = Boolean(me?.statusEffects.blessed);
   const lockedItem = me?.itemsState.lockedItem ?? null;
   const lockedHands = me?.itemsState.lockedItemHandsLeft ?? 0;
 
   useFrame(({ clock }) => {
-    if (!phoneScreenRef.current) return;
-    if (hasDebt || hasDebtPressure) {
-      const pulse = 0.5 + 0.5 * Math.sin(clock.getElapsedTime() * 6);
-      phoneScreenRef.current.emissiveIntensity = 0.5 + pulse * 0.9;
-    } else {
-      phoneScreenRef.current.emissiveIntensity = 0.45;
-    }
+    if (!phoneScreenMatRef.current) return;
+    phoneScreenMatRef.current.emissiveIntensity = hasDebt
+      ? 0.45 + 0.55 * Math.abs(Math.sin(clock.getElapsedTime() * 5))
+      : 0.35;
   });
 
-  const getStatusNote = (type: ItemType): { note: string; locked: boolean; disabled: boolean } => {
-    if (!me) return { note: 'Vào trận để sử dụng', locked: false, disabled: true };
-    if (lockedItem === type && lockedHands > 0) {
-      return { note: `Bị chủ nợ khóa (${lockedHands} ván nữa)`, locked: true, disabled: true };
-    }
+  const getStatus = (type: ItemType): string => {
+    if (!me) return 'Sẵn sàng khi vào ván';
+    if (lockedItem === type && lockedHands > 0) return `BỊ KHÓA (${lockedHands} ván)`;
     switch (type) {
       case 'PHONE':
-        return {
-          note: me.activeLoan
-            ? `Đang nợ ${me.activeLoan.currentOwed.toLocaleString()} chip — Bấm để trả nợ`
-            : 'Sẵn sàng — Bấm để mở máy vay nóng',
-          locked: false,
-          disabled: false,
-        };
+        return me.activeLoan
+          ? `Đang nợ ${me.activeLoan.currentOwed.toLocaleString()} — Bấm trả`
+          : 'Bấm để mở App Vay Nhanh';
       case 'INCENSE_BOWL':
-        if (me.itemsState.incenseCooldownHands > 0) {
-          return {
-            note: `Đang hồi (${me.itemsState.incenseCooldownHands} ván nữa)`,
-            locked: false,
-            disabled: true,
-          };
-        }
-        return {
-          note: me.via >= 20 ? 'Sẵn sàng (20 Vía) — Bấm để thắp hương' : 'Cần tối thiểu 20 Vía',
-          locked: false,
-          disabled: me.via < 20,
-        };
+        return me.itemsState.incenseCooldownHands > 0
+          ? `Hồi sau ${me.itemsState.incenseCooldownHands} ván`
+          : me.via >= 20
+            ? 'Sẵn sàng (20 Vía)'
+            : 'Chưa đủ 20 Vía';
       case 'LUCKY_MANGO':
-        return {
-          note:
-            me.itemsState.luckyMangoUsesLeft > 0
-              ? `Còn ${me.itemsState.luckyMangoUsesLeft}/2 quả — Bấm để ăn`
-              : 'Đã dùng hết trong trận này',
-          locked: false,
-          disabled: me.itemsState.luckyMangoUsesLeft <= 0,
-        };
+        return me.itemsState.luckyMangoUsesLeft > 0
+          ? `Còn ${me.itemsState.luckyMangoUsesLeft}/2 quả`
+          : 'Đã dùng hết';
       case 'ICED_TEA':
-        return {
-          note:
-            me.itemsState.icedTeaCooldownHands > 0
-              ? `Đang hồi (${me.itemsState.icedTeaCooldownHands} ván nữa)`
-              : 'Sẵn sàng — Bấm để uống (+20s)',
-          locked: false,
-          disabled: me.itemsState.icedTeaCooldownHands > 0,
-        };
+        return me.itemsState.icedTeaCooldownHands > 0
+          ? `Hồi sau ${me.itemsState.icedTeaCooldownHands} ván`
+          : 'Sẵn sàng (+20s)';
       case 'LUCKY_COIN':
-        return {
-          note: 'Đang bảo hộ bị động (tự động kích hoạt)',
-          locked: false,
-          disabled: false,
-        };
+        return 'Tự động bảo hộ';
     }
   };
 
+  const ownedSet = useMemo(() => new Set(me?.ownedItems ?? []), [me?.ownedItems]);
+
+  if (!me || ownedSet.size === 0) {
+    return null;
+  }
+
   return (
     <group>
-      {/* 1. PHONE */}
-      {(() => {
-        const meta = ITEMS_LAYOUT[0];
-        const status = getStatusNote('PHONE');
-        return (
-          <InteractiveItemWrapper
-            meta={meta}
-            statusNote={status.note}
-            isLocked={status.locked}
-            isDisabled={status.disabled}
-            onClick={() => onUseItem('PHONE')}
-          >
-            {(hovered) => (
-              <group rotation={[0, 0.35, 0]}>
-                <mesh castShadow receiveShadow position={[0, 0.04, 0]}>
-                  <boxGeometry args={[0.36, 0.05, 0.64]} />
-                  <meshStandardMaterial
-                    color={SCENE_TOKENS.items.phoneBody}
-                    roughness={0.35}
-                    metalness={0.4}
-                  />
-                </mesh>
-                <mesh position={[0, 0.068, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                  <planeGeometry args={[0.3, 0.54]} />
-                  <meshStandardMaterial
-                    ref={phoneScreenRef}
-                    color={
-                      hasDebt || hasDebtPressure
-                        ? SCENE_TOKENS.items.phoneScreenDebt
+      {/* 1. VOXEL SMARTPHONE */}
+      {ownedSet.has('PHONE') && (
+        <InteractiveVoxelItem
+          meta={ITEMS_LAYOUT[0]}
+          statusNote={getStatus('PHONE')}
+          onClick={() => onUseItem('PHONE')}
+        >
+          {(hovered) => (
+            <group rotation={[0, 0.34, 0]}>
+              <mesh castShadow receiveShadow position={[0, 0.03, 0]}>
+                <boxGeometry args={[0.38, 0.06, 0.66]} />
+                <meshStandardMaterial color={SCENE_TOKENS.items.phoneBody} roughness={0.55} />
+              </mesh>
+              <mesh position={[0, 0.064, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[0.32, 0.58]} />
+                <meshStandardMaterial
+                  ref={phoneScreenMatRef}
+                  map={phoneScreenTex}
+                  emissive={
+                    hasDebt
+                      ? SCENE_TOKENS.items.phoneScreenDebt
+                      : hovered
+                        ? SCENE_TOKENS.items.hoverEmissive
                         : SCENE_TOKENS.items.phoneScreenIdle
-                    }
-                    emissive={
-                      hasDebt || hasDebtPressure
-                        ? SCENE_TOKENS.items.phoneScreenDebt
-                        : hovered
-                          ? SCENE_TOKENS.items.hoverEmissive
-                          : SCENE_TOKENS.items.phoneScreenIdle
-                    }
-                    emissiveIntensity={0.5}
-                  />
-                </mesh>
-              </group>
-            )}
-          </InteractiveItemWrapper>
-        );
-      })()}
+                  }
+                  emissiveMap={phoneScreenTex}
+                  emissiveIntensity={0.45}
+                />
+              </mesh>
+            </group>
+          )}
+        </InteractiveVoxelItem>
+      )}
 
-      {/* 2. INCENSE BOWL */}
-      {(() => {
-        const meta = ITEMS_LAYOUT[1];
-        const status = getStatusNote('INCENSE_BOWL');
-        return (
-          <InteractiveItemWrapper
-            meta={meta}
-            statusNote={status.note}
-            isLocked={status.locked}
-            isDisabled={status.disabled}
-            onClick={() => onUseItem('INCENSE_BOWL')}
-          >
-            {(hovered) => (
-              <group>
-                {/* Ceramic bowl */}
-                <mesh castShadow receiveShadow position={[0, 0.14, 0]}>
-                  <cylinderGeometry args={[0.26, 0.19, 0.26, 20]} />
-                  <meshStandardMaterial
-                    color={SCENE_TOKENS.items.ceramicBowl}
-                    emissive={hovered || isBlessed ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
-                    emissiveIntensity={isBlessed ? 0.25 : hovered ? 0.2 : 0}
-                    roughness={0.55}
-                  />
-                </mesh>
-                <mesh position={[0, 0.26, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                  <ringGeometry args={[0.2, 0.26, 20]} />
-                  <meshStandardMaterial color={SCENE_TOKENS.items.ceramicRim} />
-                </mesh>
-                {/* 3 cute short incense sticks */}
-                {[-0.07, 0, 0.07].map((x, idx) => (
-                  <group key={idx} position={[x, 0.34, 0]} rotation={[0, 0, x * -1.4]}>
-                    <mesh castShadow>
-                      <cylinderGeometry args={[0.012, 0.012, 0.28, 8]} />
-                      <meshStandardMaterial color={SCENE_TOKENS.items.incenseStick} />
-                    </mesh>
-                    <mesh position={[0, 0.145, 0]}>
-                      <sphereGeometry args={[0.018, 8, 8]} />
-                      <meshStandardMaterial
-                        color={SCENE_TOKENS.items.incenseEmber}
-                        emissive={SCENE_TOKENS.items.incenseEmber}
-                        emissiveIntensity={isBlessed ? 1.8 : 0.6}
-                      />
-                    </mesh>
-                  </group>
-                ))}
-                <IncenseSmokeParticles active={isBlessed} />
-              </group>
-            )}
-          </InteractiveItemWrapper>
-        );
-      })()}
-
-      {/* 3. LUCKY MANGO */}
-      {(() => {
-        const meta = ITEMS_LAYOUT[2];
-        const status = getStatusNote('LUCKY_MANGO');
-        const usesLeft = me?.itemsState.luckyMangoUsesLeft ?? 2;
-        return (
-          <InteractiveItemWrapper
-            meta={meta}
-            statusNote={status.note}
-            isLocked={status.locked}
-            isDisabled={status.disabled}
-            onClick={() => onUseItem('LUCKY_MANGO')}
-          >
-            {(hovered) => (
-              <group>
-                {/* Small ceramic saucer */}
-                <mesh castShadow receiveShadow position={[0, 0.03, 0]}>
-                  <cylinderGeometry args={[0.3, 0.22, 0.05, 20]} />
-                  <meshStandardMaterial color={SCENE_TOKENS.items.ceramicBowl} roughness={0.4} />
-                </mesh>
-                {usesLeft > 0 && (
-                  <group position={[0, 0.16, 0]} rotation={[0.2, 0.5, 0.4]}>
-                    <mesh castShadow scale={[1.3, 0.9, 0.92]}>
-                      <sphereGeometry args={[0.16, 18, 18]} />
-                      <meshStandardMaterial
-                        color={SCENE_TOKENS.items.mangoSkin}
-                        emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
-                        emissiveIntensity={hovered ? 0.3 : 0}
-                        roughness={0.35}
-                      />
-                    </mesh>
-                    {/* Tiny green leaf */}
-                    <mesh position={[0.18, 0.06, 0]} rotation={[0, 0, -0.5]}>
-                      <boxGeometry args={[0.12, 0.02, 0.06]} />
-                      <meshStandardMaterial color={SCENE_TOKENS.items.mangoLeaf} />
-                    </mesh>
-                  </group>
-                )}
-              </group>
-            )}
-          </InteractiveItemWrapper>
-        );
-      })()}
-
-      {/* 4. ICED TEA */}
-      {(() => {
-        const meta = ITEMS_LAYOUT[3];
-        const status = getStatusNote('ICED_TEA');
-        return (
-          <InteractiveItemWrapper
-            meta={meta}
-            statusNote={status.note}
-            isLocked={status.locked}
-            isDisabled={status.disabled}
-            onClick={() => onUseItem('ICED_TEA')}
-          >
-            {(hovered) => (
-              <group>
-                {/* Glass cup */}
-                <mesh castShadow receiveShadow position={[0, 0.24, 0]}>
-                  <cylinderGeometry args={[0.2, 0.15, 0.46, 18]} />
-                  <meshStandardMaterial
-                    color={SCENE_TOKENS.items.teaGlass}
-                    transparent
-                    opacity={0.45}
-                    roughness={0.12}
-                    metalness={0.1}
-                  />
-                </mesh>
-                {/* Amber tea liquid */}
-                <mesh position={[0, 0.2, 0]}>
-                  <cylinderGeometry args={[0.175, 0.135, 0.34, 16]} />
-                  <meshStandardMaterial
-                    color={SCENE_TOKENS.items.teaLiquid}
-                    emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
-                    emissiveIntensity={hovered ? 0.25 : 0}
-                    transparent
-                    opacity={0.85}
-                    roughness={0.2}
-                  />
-                </mesh>
-                {/* Ice cubes */}
-                {[
-                  [-0.05, 0.37, 0.03],
-                  [0.06, 0.36, -0.04],
-                ].map(([ix, iy, iz], idx) => (
-                  <mesh key={idx} position={[ix, iy, iz]} rotation={[0.4, 0.6, 0.2]}>
-                    <boxGeometry args={[0.08, 0.08, 0.08]} />
+      {/* 2. VOXEL STEPPED BÁT HƯƠNG MINI */}
+      {ownedSet.has('INCENSE_BOWL') && (
+        <InteractiveVoxelItem
+          meta={ITEMS_LAYOUT[1]}
+          statusNote={getStatus('INCENSE_BOWL')}
+          onClick={() => onUseItem('INCENSE_BOWL')}
+        >
+          {(hovered) => (
+            <group>
+              <mesh castShadow receiveShadow position={[0, 0.04, 0]}>
+                <boxGeometry args={[0.3, 0.08, 0.3]} />
+                <meshStandardMaterial map={bowlTex} roughness={0.6} />
+              </mesh>
+              <mesh geometry={bowlBelly} castShadow receiveShadow position={[0, 0.24, 0]}>
+                <meshStandardMaterial
+                  map={bowlTex}
+                  emissive={hovered || isBlessed ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
+                  emissiveIntensity={isBlessed ? 0.22 : hovered ? 0.16 : 0}
+                  roughness={0.55}
+                />
+              </mesh>
+              <mesh position={[0, 0.26, 0]}>
+                <boxGeometry args={[0.36, 0.04, 0.36]} />
+                <meshStandardMaterial color="#b5a898" roughness={0.9} />
+              </mesh>
+              {[-0.08, 0, 0.08].map((x, idx) => (
+                <group key={idx} position={[x, 0.42, 0]} rotation={[0, 0, x * -1.2]}>
+                  <mesh>
+                    <boxGeometry args={[0.025, 0.28, 0.025]} />
+                    <meshStandardMaterial color={SCENE_TOKENS.items.incenseStick} />
+                  </mesh>
+                  <mesh position={[0, 0.155, 0]}>
+                    <boxGeometry args={[0.035, 0.035, 0.035]} />
                     <meshStandardMaterial
-                      color={SCENE_TOKENS.items.teaIce}
-                      transparent
-                      opacity={0.78}
-                      roughness={0.1}
+                      color={SCENE_TOKENS.items.incenseEmber}
+                      emissive={SCENE_TOKENS.items.incenseEmber}
+                      emissiveIntensity={isBlessed ? 2.2 : 0.7}
+                    />
+                  </mesh>
+                </group>
+              ))}
+              <VoxelSmokeParticles active={isBlessed} />
+            </group>
+          )}
+        </InteractiveVoxelItem>
+      )}
+
+      {/* 3. VOXEL STEPPED LUCKY MANGO */}
+      {ownedSet.has('LUCKY_MANGO') && (
+        <InteractiveVoxelItem
+          meta={ITEMS_LAYOUT[2]}
+          statusNote={getStatus('LUCKY_MANGO')}
+          onClick={() => onUseItem('LUCKY_MANGO')}
+        >
+          {(hovered) => (
+            <group>
+              <mesh geometry={saucer} castShadow receiveShadow position={[0, 0.05, 0]}>
+                <meshStandardMaterial color="#ece3d2" roughness={0.6} />
+              </mesh>
+              {(me?.itemsState.luckyMangoUsesLeft ?? 2) > 0 && (
+                <group position={[0, 0.15, 0]} rotation={[0, 0.45, 0]}>
+                  <mesh castShadow position={[0, 0, 0]}>
+                    <boxGeometry args={[0.24, 0.18, 0.22]} />
+                    <meshStandardMaterial
+                      color={SCENE_TOKENS.items.mangoSkin}
+                      emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
+                      emissiveIntensity={hovered ? 0.25 : 0}
+                      roughness={0.6}
+                    />
+                  </mesh>
+                  <mesh position={[-0.17, -0.02, 0]}>
+                    <boxGeometry args={[0.1, 0.14, 0.16]} />
+                    <meshStandardMaterial color={SCENE_TOKENS.items.mangoBlush} roughness={0.6} />
+                  </mesh>
+                  <mesh position={[0.17, 0.02, 0]}>
+                    <boxGeometry args={[0.1, 0.14, 0.16]} />
+                    <meshStandardMaterial color="#facc15" roughness={0.6} />
+                  </mesh>
+                  <mesh position={[0.25, 0.05, 0]}>
+                    <boxGeometry args={[0.06, 0.04, 0.04]} />
+                    <meshStandardMaterial color="#5c3a1e" />
+                  </mesh>
+                  <mesh position={[0.2, 0.12, 0.06]}>
+                    <boxGeometry args={[0.12, 0.03, 0.08]} />
+                    <meshStandardMaterial color={SCENE_TOKENS.items.mangoLeaf} />
+                  </mesh>
+                </group>
+              )}
+            </group>
+          )}
+        </InteractiveVoxelItem>
+      )}
+
+      {/* 4. VOXEL TRÀ ĐÁ GLASS */}
+      {ownedSet.has('ICED_TEA') && (
+        <InteractiveVoxelItem
+          meta={ITEMS_LAYOUT[3]}
+          statusNote={getStatus('ICED_TEA')}
+          onClick={() => onUseItem('ICED_TEA')}
+        >
+          {(hovered) => (
+            <group>
+              <mesh castShadow position={[0, 0.23, 0]}>
+                <boxGeometry args={[0.34, 0.46, 0.34]} />
+                <meshStandardMaterial
+                  color={SCENE_TOKENS.items.teaGlass}
+                  transparent
+                  opacity={0.42}
+                  roughness={0.25}
+                />
+              </mesh>
+              <mesh position={[0, 0.19, 0]}>
+                <boxGeometry args={[0.27, 0.32, 0.27]} />
+                <meshStandardMaterial
+                  color={SCENE_TOKENS.items.teaLiquid}
+                  emissive={hovered ? SCENE_TOKENS.items.hoverEmissive : '#000000'}
+                  emissiveIntensity={hovered ? 0.25 : 0}
+                  transparent
+                  opacity={0.86}
+                  roughness={0.35}
+                />
+              </mesh>
+              {[
+                [-0.06, 0.38, 0.05],
+                [0.06, 0.37, -0.05],
+              ].map(([ix, iy, iz], idx) => (
+                <mesh key={idx} position={[ix, iy, iz]} rotation={[0.2, 0.4 * idx, 0.1]}>
+                  <boxGeometry args={[0.09, 0.09, 0.09]} />
+                  <meshStandardMaterial color={SCENE_TOKENS.items.teaIce} transparent opacity={0.85} />
+                </mesh>
+              ))}
+              <mesh position={[0.21, 0.45, 0.14]}>
+                <boxGeometry args={[0.1, 0.1, 0.04]} />
+                <meshStandardMaterial color="#84cc16" />
+              </mesh>
+            </group>
+          )}
+        </InteractiveVoxelItem>
+      )}
+
+      {/* 5. VOXEL HOLLOW SQUARE-HOLE ANCIENT COIN */}
+      {ownedSet.has('LUCKY_COIN') && (
+        <InteractiveVoxelItem
+          meta={ITEMS_LAYOUT[4]}
+          statusNote={getStatus('LUCKY_COIN')}
+          onClick={() => onUseItem('LUCKY_COIN')}
+        >
+          {(hovered) => {
+            const ready = lockedItem !== 'LUCKY_COIN';
+            const emissiveInt = hovered ? 0.5 : ready ? 0.2 : 0;
+            return (
+              <group position={[0, 0.03, 0]}>
+                {[
+                  [0, 0, -0.14, 0.38, 0.06, 0.1],
+                  [0, 0, 0.14, 0.38, 0.06, 0.1],
+                  [-0.14, 0, 0, 0.1, 0.06, 0.18],
+                  [0.14, 0, 0, 0.1, 0.06, 0.18],
+                ].map(([x, y, z, w, h, d], idx) => (
+                  <mesh key={idx} position={[x, y, z]} castShadow>
+                    <boxGeometry args={[w, h, d]} />
+                    <meshStandardMaterial
+                      color={SCENE_TOKENS.items.coinGold}
+                      emissive={ready ? SCENE_TOKENS.items.coinGold : '#000000'}
+                      emissiveIntensity={emissiveInt}
+                      metalness={0.65}
+                      roughness={0.35}
                     />
                   </mesh>
                 ))}
-              </group>
-            )}
-          </InteractiveItemWrapper>
-        );
-      })()}
-
-      {/* 5. LUCKY COIN */}
-      {(() => {
-        const meta = ITEMS_LAYOUT[4];
-        const status = getStatusNote('LUCKY_COIN');
-        const isReady = lockedItem !== 'LUCKY_COIN';
-        return (
-          <InteractiveItemWrapper
-            meta={meta}
-            statusNote={status.note}
-            isLocked={status.locked}
-            isDisabled={status.disabled}
-            onClick={() => onUseItem('LUCKY_COIN')}
-          >
-            {(hovered) => (
-              <group>
-                {/* Ancient coin */}
-                <mesh castShadow receiveShadow position={[0, 0.04, 0]}>
-                  <cylinderGeometry args={[0.21, 0.21, 0.04, 24]} />
-                  <meshStandardMaterial
-                    color={SCENE_TOKENS.items.coinGold}
-                    emissive={isReady ? SCENE_TOKENS.items.coinGold : '#000000'}
-                    emissiveIntensity={hovered ? 0.55 : isReady ? 0.22 : 0}
-                    metalness={0.75}
-                    roughness={0.25}
-                  />
-                </mesh>
-                {/* Red lucky thread ring */}
-                <mesh position={[0, 0.055, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                  <torusGeometry args={[0.23, 0.02, 8, 24]} />
-                  <meshStandardMaterial color={SCENE_TOKENS.items.coinThread} roughness={0.6} />
+                <mesh position={[0.26, 0, 0.14]}>
+                  <boxGeometry args={[0.14, 0.04, 0.06]} />
+                  <meshStandardMaterial color={SCENE_TOKENS.items.coinThread} />
                 </mesh>
               </group>
-            )}
-          </InteractiveItemWrapper>
-        );
-      })()}
+            );
+          }}
+        </InteractiveVoxelItem>
+      )}
     </group>
   );
-}
+});

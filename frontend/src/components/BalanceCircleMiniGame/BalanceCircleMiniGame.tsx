@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye } from 'lucide-react';
 import { MiniGameChallenge, MiniGameSubmissionPayload } from '../../types/game';
 
 export interface BalanceCircleMiniGameProps {
@@ -116,12 +115,9 @@ export function BalanceCircleMiniGame({
   const ringRadiusPx = Math.round(maxAllowedRadius * 82);
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-accent-via/70 bg-surface-panel/95 p-6 shadow-warm backdrop-blur-md">
+    <div className="voxel-panel w-full max-w-md border-accent-via p-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-accent-via">
-          <Eye className="h-5 w-5" />
-          <h3 className="text-base font-extrabold">Tâm Nhãn Đọc Vị</h3>
-        </div>
+        <h3 className="font-mono text-base font-extrabold text-accent-via">TÂM NHÃN ĐỌC VỊ</h3>
         <span className="font-mono text-xs font-bold text-accent-via">
           {Math.round(progressPct)}%
         </span>
@@ -129,13 +125,13 @@ export function BalanceCircleMiniGame({
 
       <p className="mt-1 text-xs text-content-secondary">
         Giữ chuột hoặc phím{' '}
-        <kbd className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">
+        <kbd className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">
           Space
         </kbd>{' '}
-        để kéo chấm sáng nằm trong vòng chuẩn suốt 2.5 giây!
+        để giữ khối sáng trong ô chuẩn suốt 2.5 giây!
       </p>
 
-      {/* Balance Arena */}
+      {/* Square Voxel Balance Arena */}
       <div
         onMouseDown={() => {
           holdingRef.current = true;
@@ -157,11 +153,10 @@ export function BalanceCircleMiniGame({
           holdingRef.current = false;
           setHolding(false);
         }}
-        className="relative mx-auto mt-5 flex h-44 w-44 cursor-pointer select-none items-center justify-center rounded-full border border-border-subtle bg-surface-canvas"
+        className="relative mx-auto mt-5 flex h-44 w-44 cursor-pointer select-none items-center justify-center border-2 border-border-subtle bg-surface-canvas"
       >
-        {/* Target Safe Circle */}
         <div
-          className={`rounded-full border-2 transition-colors ${
+          className={`border-2 transition-colors ${
             inside
               ? 'border-accent-jade bg-accent-jade/15'
               : 'border-status-danger bg-status-danger/15'
@@ -172,12 +167,9 @@ export function BalanceCircleMiniGame({
           }}
         />
 
-        {/* Drifting Focus Dot */}
         <div
-          className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full transition-shadow ${
-            inside
-              ? 'bg-accent-via shadow-viaGlow'
-              : 'bg-status-danger'
+          className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 ${
+            inside ? 'bg-accent-via' : 'bg-status-danger'
           }`}
           style={{
             left: `${50 + dotPos.x * 46}%`,
@@ -186,16 +178,15 @@ export function BalanceCircleMiniGame({
         />
       </div>
 
-      {/* Hold Progress Bar */}
-      <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-surface-canvas">
+      <div className="mt-5 h-2 w-full border border-border-subtle bg-surface-canvas">
         <div
-          className="h-full rounded-full bg-accent-via transition-none"
+          className="h-full bg-accent-via transition-none"
           style={{ width: `${progressPct}%` }}
         />
       </div>
 
-      <div className="mt-3 text-center text-xs font-semibold text-content-secondary">
-        {holding ? 'Đang tụ thần giữ tâm...' : 'Nhấn giữ chuột vào vòng tròn hoặc giữ Space'}
+      <div className="mt-3 text-center font-mono text-xs font-semibold text-content-secondary">
+        {holding ? 'ĐANG TỤ THẦN...' : 'GIỮ CHUỘT HOẶC PHÍM SPACE'}
       </div>
     </div>
   );

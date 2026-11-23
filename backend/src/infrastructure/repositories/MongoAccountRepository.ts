@@ -8,7 +8,9 @@ export class MongoAccountRepository implements IAccountRepository {
       id: doc._id.toString(),
       username: doc.username,
       displayName: doc.displayName,
+      passwordHash: doc.passwordHash,
       chips: doc.chips,
+      ownedItems: Array.isArray(doc.ownedItems) ? [...doc.ownedItems] : [],
       skillMastery: {
         sleightOfHand: { ...doc.skillMastery.sleightOfHand },
         eagleEye: { ...doc.skillMastery.eagleEye },
@@ -56,6 +58,7 @@ export class MongoAccountRepository implements IAccountRepository {
       {
         displayName: account.displayName,
         chips: account.chips,
+        ownedItems: account.ownedItems,
         skillMastery: account.skillMastery,
         debtHistory: account.debtHistory,
         stats: account.stats,

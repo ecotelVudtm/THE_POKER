@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { authenticateAccountApi, fetchAccountByIdApi } from '../services/apiClient';
+import {
+  fetchAccountByIdApi,
+  loginAccountApi,
+  registerAccountApi,
+} from '../services/apiClient';
 import { getSocket } from '../services/socketClient';
 import { soundEngine } from '../services/soundEngine';
 import { useGameStore } from '../stores/useGameStore';
@@ -16,10 +20,8 @@ import {
   SkillType,
 } from '../types/game';
 
-/**
- * Core real-time controller hook.
- * Bridges Socket.IO events <-> Zustand store + SoundEngine and exposes clean imperative actions.
- */
+const SESSION_STORAGE_KEY = 'the_poker_account_id';
+
 export function usePokerSocket() {
   const {
     connected,
@@ -50,6 +52,26 @@ export function usePokerSocket() {
   const lastCommunityCountRef = useRef<number>(0);
   const lastPotRef = useRef<number>(0);
 
+  // Restore saved session on load if still valid on server
+  useEffect(() => {
+    const savedId = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!savedId || useGameStore.getState().account) return;
+    void fetchAccountByIdApi(savedId)
+      .then((acc) => {
+        setAccount(acc);
+        const socket = getSocket();
+        if (socket.connected) {
+          socket.emit('authenticate', {
+            username: acc.username,
+            displayName: acc.displayName,
+          });
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      });
+  }, [setAccount]);
+
   useEffect(() => {
     const socket = getSocket();
     if (!socket.connected) {
@@ -76,7 +98,6 @@ export function usePokerSocket() {
     };
 
     const onRoomStateUpdate = (nextRoom: FilteredRoomState) => {
-      // Synthesized tabletop audio cues based on authoritative state diffs
       if (
         nextRoom.handNumber > lastHandNumberRef.current ||
         nextRoom.communityCards.length > lastCommunityCountRef.current
@@ -92,7 +113,6 @@ export function usePokerSocket() {
 
       setRoom(nextRoom);
 
-      // Push any brand-new room log messages into the live toast feed
       const newLogs = nextRoom.eventLog.filter(
         (entry) => entry.timestamp > lastLogTimestampRef.current
       );
@@ -130,7 +150,7 @@ export function usePokerSocket() {
           if (useGameStore.getState().lastMiniGameResult === res) {
             setLastMiniGameResult(null);
           }
-        }, 3400);
+        }, 3200);
 
         if (res.leveledUp) {
           soundEngine.playLevelUp();
@@ -144,24 +164,11 @@ export function usePokerSocket() {
           .then((fresh) => setAccount(fresh))
           .catch(() => {});
       }
-
-      if (res.success) {
-        pushToast(
-          `Tuyệt kỹ thành công! (+${res.expGained} EXP${res.leveledUp ? ` • Lên Lv.${res.newLevel}!` : ''})`,
-          'success'
-        );
-      } else if (res.mangoShieldBlocked) {
-        pushToast('Khiên Quả Xoài đã chặn đứng pha Lộ Tẩy!', 'warning');
-      } else {
-        pushToast(`Thất bại (${res.reason}) — Bị LỘ TẨY 1 lá bài!`, 'danger');
-      }
     };
 
     const onEagleEyeReveal = (payload: { nextCommunityCard: Card | null }) => {
       setEagleEyeCard(payload.nextCommunityCard);
       if (payload.nextCommunityCard) {
-        pushToast(`Tâm Nhãn thấy trước lá bài: ${payload.nextCommunityCard.code}`, 'info');
-        // Auto-hide private peek after 4 seconds
         setTimeout(() => {
           setEagleEyeCard(null);
         }, 4000);
@@ -171,15 +178,48 @@ export function usePokerSocket() {
     const onDebtCallIncoming = (payload: { currentOwed: number; handsElapsed: number }) => {
       setDebtAlert(payload);
       soundEngine.playPhoneRing();
-      pushToast(
-        `Anh Chủ Nợ đang gọi! Nợ ${payload.currentOwed.toLocaleString()} chip (quá ${payload.handsElapsed} ván).`,
-        'warning'
-      );
     };
 
     const onLuckyCoin = (payload: { refundAmount: number }) => {
       soundEngine.playIncenseBell();
-      pushToast(`Đồng xu hộ mệnh hoàn lại ${payload.refundAmount.toLocaleString()} chip!`, 'success');
+      pushToast(`Đồng xu hộ mệnh hoàn ${payload.refundAmount.toLocaleString()} chip`, 'success');
+    };
+
+    const onItemUnlocked = (payload: {
+      accountId: string;
+      displayName: string;
+      item: ItemType;
+      totalWins: number;
+    }) => {
+      const meAcc = useGameStore.getState().account;
+      if (meAcc && payload.accountId === meAcc.id) {
+        soundEngine.playLevelUp();
+        void fetchAccountByIdApi(meAcc.id)
+          .then((fresh) => setAccount(fresh))
+          .catch(() => {});
+      }
+      pushToast(
+        `${payload.displayName} đạt ${payload.totalWins} thắng — nhận đồ vật ${payload.item}!`,
+        'success'
+      );
+    };
+
+    const onWinStreakBonus = (payload: {
+      accountId: string;
+      displayName: string;
+      streak: number;
+      chipBonus: number;
+      viaBonus: number;
+    }) => {
+      const meAcc = useGameStore.getState().account;
+      if (meAcc && payload.accountId === meAcc.id) {
+        soundEngine.playLevelUp();
+        soundEngine.playChipClink();
+      }
+      pushToast(
+        `CHUỖI ${payload.streak} THẮNG LIÊN TIẾP! ${payload.displayName} +${payload.chipBonus.toLocaleString()} CHIP & +${payload.viaBonus} VÍA!`,
+        'success'
+      );
     };
 
     const onError = (payload: { event: string; message: string }) => {
@@ -195,6 +235,8 @@ export function usePokerSocket() {
     socket.on('eagle_eye_reveal', onEagleEyeReveal);
     socket.on('debt_call_incoming', onDebtCallIncoming);
     socket.on('lucky_coin_triggered', onLuckyCoin);
+    socket.on('item_unlocked', onItemUnlocked);
+    socket.on('win_streak_bonus', onWinStreakBonus);
     socket.on('error_event', onError);
 
     if (socket.connected) {
@@ -211,6 +253,8 @@ export function usePokerSocket() {
       socket.off('eagle_eye_reveal', onEagleEyeReveal);
       socket.off('debt_call_incoming', onDebtCallIncoming);
       socket.off('lucky_coin_triggered', onLuckyCoin);
+      socket.off('item_unlocked', onItemUnlocked);
+      socket.off('win_streak_bonus', onWinStreakBonus);
       socket.off('error_event', onError);
     };
   }, [
@@ -230,36 +274,58 @@ export function usePokerSocket() {
     setMuted(next);
   }, [setMuted]);
 
-  const login = useCallback(
-    async (username: string, displayName?: string) => {
-      const acc = await authenticateAccountApi(username, displayName);
+  const bindAccountSession = useCallback(
+    (acc: Account) => {
+      localStorage.setItem(SESSION_STORAGE_KEY, acc.id);
       setAccount(acc);
-      const socket = getSocket();
-      socket.emit('authenticate', { username: acc.username, displayName: acc.displayName });
-      pushToast(`Chào mừng Thần Bài ${acc.displayName}!`, 'success');
-      return acc;
+      getSocket().emit('authenticate', {
+        username: acc.username,
+        displayName: acc.displayName,
+      });
     },
-    [pushToast, setAccount]
+    [setAccount]
   );
 
+  const login = useCallback(
+    async (username: string, password: string) => {
+      const acc = await loginAccountApi(username, password);
+      bindAccountSession(acc);
+      return acc;
+    },
+    [bindAccountSession]
+  );
+
+  const register = useCallback(
+    async (username: string, password: string, displayName?: string) => {
+      const acc = await registerAccountApi(username, password, displayName);
+      bindAccountSession(acc);
+      return acc;
+    },
+    [bindAccountSession]
+  );
+
+  const logout = useCallback(() => {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    resetMatchState();
+    setAccount(null);
+  }, [resetMatchState, setAccount]);
+
   const createRoom = useCallback((options: { roomName?: string; botCount?: number }) => {
-    const socket = getSocket();
     const acc = useGameStore.getState().account;
     lastLogTimestampRef.current = 0;
     lastHandNumberRef.current = 0;
     lastCommunityCountRef.current = 0;
     lastPotRef.current = 0;
-    socket.emit('create_room', { ...options, accountId: acc?.id });
+    getSocket().emit('create_room', { ...options, accountId: acc?.id });
   }, []);
 
   const joinRoom = useCallback((roomId: string) => {
-    const socket = getSocket();
     const acc = useGameStore.getState().account;
     lastLogTimestampRef.current = 0;
     lastHandNumberRef.current = 0;
     lastCommunityCountRef.current = 0;
     lastPotRef.current = 0;
-    socket.emit('join_room', { roomId: roomId.trim().toUpperCase(), accountId: acc?.id });
+    getSocket().emit('join_room', { roomId: roomId.trim().toUpperCase(), accountId: acc?.id });
   }, []);
 
   const leaveRoom = useCallback(() => {
@@ -337,7 +403,7 @@ export function usePokerSocket() {
       }
       if (itemType === 'LUCKY_COIN') {
         soundEngine.playIncenseBell();
-        pushToast('Đồng xu hộ mệnh tự kích hoạt khi thua All-in (< 25% tỉ lệ thắng).', 'info');
+        pushToast('Đồng xu hộ mệnh tự động kích hoạt khi thua All-in (<25%)', 'info');
         return;
       }
       if (itemType === 'INCENSE_BOWL') {
@@ -384,6 +450,8 @@ export function usePokerSocket() {
     toasts,
     toggleMute,
     login,
+    register,
+    logout,
     createRoom,
     joinRoom,
     leaveRoom,

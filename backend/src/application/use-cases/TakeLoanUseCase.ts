@@ -28,6 +28,10 @@ export class TakeLoanUseCase {
     if (!player) throw new Error('Player not found in room.');
     if (player.eliminated) throw new Error('Eliminated players cannot take loans.');
 
+    if (!player.ownedItems.includes('PHONE')) {
+      throw new Error('Bạn chưa sở hữu Chiếc Điện Thoại! Hãy thắng mỗi 3 ván để nhận đồ ngẫu nhiên.');
+    }
+
     if (player.itemsState.lockedItem === 'PHONE' && player.itemsState.lockedItemHandsLeft > 0) {
       throw new Error('Chiếc điện thoại đang bị khóa.');
     }

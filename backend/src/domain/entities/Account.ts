@@ -1,3 +1,4 @@
+import { ItemType } from '../value-objects/Item';
 import { DebtRecord } from '../value-objects/Loan';
 import { SkillMasteryKey } from '../value-objects/Skill';
 
@@ -22,12 +23,32 @@ export interface Account {
   id: string;
   username: string;
   displayName: string;
+  passwordHash?: string;
   chips: number;
+  ownedItems: ItemType[];
   skillMastery: SkillMastery;
   debtHistory: DebtRecord[];
   stats: AccountStats;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface PublicAccount {
+  id: string;
+  username: string;
+  displayName: string;
+  chips: number;
+  ownedItems: ItemType[];
+  skillMastery: SkillMastery;
+  debtHistory: DebtRecord[];
+  stats: AccountStats;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export function toPublicAccount(account: Account): PublicAccount {
+  const { passwordHash: _omitted, ...publicAcc } = account;
+  return publicAcc;
 }
 
 export const DEFAULT_STARTING_CHIPS = 10000;

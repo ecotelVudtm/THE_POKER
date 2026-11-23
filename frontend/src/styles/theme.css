@@ -3,9 +3,7 @@
 @tailwind utilities;
 
 /**
- * Semantic DODJONG-style Theme Tokens — "Thần Bài Đời Thường"
- * Warm tea-house wood, classic green felt, amber tabletop lamp, jade accents.
- * RGB triplets enable Tailwind alpha modifiers (e.g. bg-surface-panel/90).
+ * Semantic DODJONG-style Theme Tokens — "Thần Bài Đời Thường" (Voxel / Minecraft Edition)
  */
 :root {
   /* Surfaces */
@@ -45,18 +43,113 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  font-family: 'Chakra Petch', system-ui, sans-serif;
 }
 
-/* Subtle scrollbar for toast feeds */
+/* =========================================================================
+   100% SQUARE / PIXEL-BEVELED VOXEL UI PRIMITIVES (Zero smooth border-radius!)
+   ========================================================================= */
+.voxel-panel {
+  border-radius: 0;
+  border: 2px solid rgb(var(--border-subtle));
+  background: rgb(var(--surface-canvas) / 0.9);
+  box-shadow:
+    inset 2px 2px 0 rgb(255 255 255 / 0.08),
+    inset -2px -2px 0 rgb(0 0 0 / 0.45),
+    4px 4px 0 rgb(0 0 0 / 0.65);
+}
+
+.voxel-panel-gold {
+  border-radius: 0;
+  border: 2px solid rgb(var(--border-gold));
+  background: rgb(var(--surface-canvas) / 0.92);
+  box-shadow:
+    inset 2px 2px 0 rgb(var(--border-gold) / 0.22),
+    inset -2px -2px 0 rgb(0 0 0 / 0.55),
+    4px 4px 0 rgb(0 0 0 / 0.72);
+}
+
+.voxel-btn {
+  border-radius: 0;
+  box-shadow:
+    inset 2px 2px 0 rgb(255 255 255 / 0.24),
+    inset -2px -2px 0 rgb(0 0 0 / 0.38),
+    3px 3px 0 rgb(0 0 0 / 0.6);
+  transition: transform 80ms steps(2), filter 80ms linear;
+}
+
+.voxel-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.voxel-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow:
+    inset 2px 2px 0 rgb(0 0 0 / 0.35),
+    inset -2px -2px 0 rgb(255 255 255 / 0.12),
+    1px 1px 0 rgb(0 0 0 / 0.6);
+}
+
+.voxel-input {
+  border-radius: 0;
+  border: 2px solid rgb(var(--border-subtle));
+  background: rgb(var(--surface-panel) / 0.94);
+  box-shadow: inset 2px 2px 0 rgb(0 0 0 / 0.45);
+}
+
+.voxel-input:focus {
+  border-color: rgb(var(--border-gold));
+  outline: none;
+}
+
+/* =========================================================================
+   3D VOXEL MINI-ICON FLICK SPIN (Tilted 3D object -> 360° flick spin on click)
+   ========================================================================= */
+.voxel-icon-stage {
+  perspective: 160px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.voxel-icon-3d {
+  transform-style: preserve-3d;
+  transform: rotateX(22deg) rotateY(-28deg);
+  transition: transform 150ms ease-out;
+}
+
+.voxel-icon-stage:hover .voxel-icon-3d {
+  transform: rotateX(18deg) rotateY(-18deg) translateY(-1px);
+}
+
+@keyframes voxelFlickSpin {
+  0% {
+    transform: rotateX(22deg) rotateY(-28deg) translateY(0px);
+  }
+  35% {
+    transform: rotateX(12deg) rotateY(152deg) translateY(-6px);
+  }
+  75% {
+    transform: rotateX(26deg) rotateY(345deg) translateY(-1px);
+  }
+  100% {
+    transform: rotateX(22deg) rotateY(332deg) translateY(0px);
+  }
+}
+
+.voxel-icon-flick {
+  animation: voxelFlickSpin 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgb(var(--surface-canvas) / 0.4);
+  background: rgb(var(--surface-canvas));
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--border-subtle) / 0.8);
-  border-radius: 9999px;
+  background: rgb(var(--border-subtle));
 }

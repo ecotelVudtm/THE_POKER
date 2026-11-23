@@ -28,30 +28,32 @@ const SUIT_SYMBOLS: Record<Suit, string> = {
   CLUBS: '♣',
 };
 
+/**
+ * Crisp pixel-styled playing card front texture (NearestFilter for sharp voxel look).
+ */
 export function getCardFrontTexture(card: Card): THREE.CanvasTexture {
   const existing = frontTextureCache.get(card.code);
   if (existing) return existing;
 
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 360;
+  canvas.width = 160;
+  canvas.height = 224;
   const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
 
   const isRed = card.suit === 'HEARTS' || card.suit === 'DIAMONDS';
   const ink = isRed ? SCENE_TOKENS.cards.suitRed : SCENE_TOKENS.cards.suitBlack;
 
-  // Paper background with subtle warm card border
-  ctx.fillStyle = SCENE_TOKENS.cards.paperFront;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Warm cream card base
+  ctx.fillStyle = '#fcf8ef';
+  ctx.fillRect(0, 0, 160, 224);
 
-  ctx.strokeStyle = SCENE_TOKENS.cards.paperEdge;
-  ctx.lineWidth = 10;
-  ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
-
-  // Inner thin ornamental frame
-  ctx.strokeStyle = isRed ? 'rgba(201, 42, 42, 0.16)' : 'rgba(31, 35, 40, 0.14)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+  // Crisp blocky pixel border
+  ctx.fillStyle = '#dfd4be';
+  ctx.fillRect(0, 0, 160, 6);
+  ctx.fillRect(0, 218, 160, 6);
+  ctx.fillRect(0, 0, 6, 224);
+  ctx.fillRect(154, 0, 6, 224);
 
   const rankLabel = RANK_LABELS[card.rank];
   const suitSymbol = SUIT_SYMBOLS[card.suit];
@@ -59,104 +61,90 @@ export function getCardFrontTexture(card: Card): THREE.CanvasTexture {
   ctx.fillStyle = ink;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = '800 50px "Be Vietnam Pro", sans-serif';
-  ctx.fillText(rankLabel, 26, 22);
-  ctx.font = '44px serif';
-  ctx.fillText(suitSymbol, 28, 72);
+  ctx.font = '800 34px "JetBrains Mono", monospace';
+  ctx.fillText(rankLabel, 14, 12);
+  ctx.font = '30px serif';
+  ctx.fillText(suitSymbol, 16, 46);
 
-  // Center emblem
+  // Center bold suit
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '122px serif';
-  ctx.fillText(suitSymbol, canvas.width / 2, canvas.height / 2 + 4);
+  ctx.font = '82px serif';
+  ctx.fillText(suitSymbol, 80, 116);
 
-  // Bottom-right rotated corner
+  // Mirrored bottom-right
   ctx.save();
-  ctx.translate(canvas.width, canvas.height);
+  ctx.translate(160, 224);
   ctx.rotate(Math.PI);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = '800 50px "Be Vietnam Pro", sans-serif';
-  ctx.fillText(rankLabel, 26, 22);
-  ctx.font = '44px serif';
-  ctx.fillText(suitSymbol, 28, 72);
+  ctx.font = '800 34px "JetBrains Mono", monospace';
+  ctx.fillText(rankLabel, 14, 12);
+  ctx.font = '30px serif';
+  ctx.fillText(suitSymbol, 16, 46);
   ctx.restore();
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
   frontTextureCache.set(card.code, texture);
   return texture;
 }
 
-/**
- * Vietnamese Đông Sơn bronze-drum inspired ornamental back texture.
- */
+/** Pixel-art Đông Sơn geometric voxel card back */
 export function getCardBackTexture(): THREE.CanvasTexture {
   if (cachedBackTexture) return cachedBackTexture;
 
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 360;
+  canvas.width = 64;
+  canvas.height = 88;
   const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
 
-  // Warm lacquer crimson-brown base
-  ctx.fillStyle = SCENE_TOKENS.cards.backBase;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Cream pixel border
+  ctx.fillStyle = '#fcf6e8';
+  ctx.fillRect(0, 0, 64, 88);
 
-  // Outer cream border
-  ctx.strokeStyle = SCENE_TOKENS.cards.backBorder;
-  ctx.lineWidth = 14;
-  ctx.strokeRect(7, 7, canvas.width - 14, canvas.height - 14);
+  // Crimson lacquer body
+  ctx.fillStyle = '#7c2d12';
+  ctx.fillRect(4, 4, 56, 80);
 
-  // Inner gold double frame
-  ctx.strokeStyle = SCENE_TOKENS.cards.backPattern;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(24, 24, canvas.width - 48, canvas.height - 48);
+  // Gold pixel frame
+  ctx.fillStyle = '#eab308';
+  ctx.fillRect(8, 8, 48, 2);
+  ctx.fillRect(8, 78, 48, 2);
+  ctx.fillRect(8, 8, 2, 72);
+  ctx.fillRect(54, 8, 2, 72);
 
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  // Stepped pixel diamond / Đông Sơn sun center
+  const cx = 32;
+  const cy = 44;
+  ctx.fillStyle = '#facc15';
+  ctx.fillRect(cx - 4, cy - 16, 8, 32);
+  ctx.fillRect(cx - 16, cy - 4, 32, 8);
+  ctx.fillRect(cx - 10, cy - 10, 20, 20);
+  ctx.fillStyle = '#7c2d12';
+  ctx.fillRect(cx - 6, cy - 6, 12, 12);
+  ctx.fillStyle = '#facc15';
+  ctx.fillRect(cx - 2, cy - 2, 4, 4);
 
-  // Concentric bronze-drum rings
-  ctx.strokeStyle = SCENE_TOKENS.cards.backPattern;
-  for (const r of [24, 52, 76, 92]) {
-    ctx.lineWidth = r === 76 ? 3 : 1.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // 12-ray central Đông Sơn sun star
-  ctx.fillStyle = SCENE_TOKENS.cards.backPattern;
-  const rays = 12;
-  ctx.beginPath();
-  for (let i = 0; i < rays * 2; i++) {
-    const radius = i % 2 === 0 ? 48 : 20;
-    const angle = (i * Math.PI) / rays - Math.PI / 2;
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  // Corner lotus dots
-  const corners: [number, number][] = [
-    [42, 42],
-    [canvas.width - 42, 42],
-    [42, canvas.height - 42],
-    [canvas.width - 42, canvas.height - 42],
-  ];
-  for (const [x, y] of corners) {
-    ctx.beginPath();
-    ctx.arc(x, y, 7, 0, Math.PI * 2);
-    ctx.fill();
+  // Corner pixel diamonds
+  for (const [x, y] of [
+    [14, 14],
+    [46, 14],
+    [14, 70],
+    [46, 70],
+  ]) {
+    ctx.fillRect(x, y, 4, 4);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
   cachedBackTexture = texture;
   return texture;
 }

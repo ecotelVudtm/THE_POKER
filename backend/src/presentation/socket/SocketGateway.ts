@@ -10,6 +10,7 @@ import { SubmitMiniGameUseCase } from '../../application/use-cases/SubmitMiniGam
 import { TakeLoanUseCase } from '../../application/use-cases/TakeLoanUseCase';
 import { TriggerSkillUseCase } from '../../application/use-cases/TriggerSkillUseCase';
 import { UseItemUseCase } from '../../application/use-cases/UseItemUseCase';
+import { toPublicAccount } from '../../domain/entities/Account';
 import { BetAction, Room } from '../../domain/entities/Room';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
 import { filterRoomStateForViewer } from '../../domain/rules/StateFilter';
@@ -56,12 +57,18 @@ export class SocketGateway {
               displayName: payload?.displayName,
             });
             socket.data.accountId = account.id;
-            socket.emit('authenticated', { account });
+            socket.emit('authenticated', { account: toPublicAccount(account) });
           } catch (err) {
             this.emitError(socket, 'authenticate', err);
           }
         }
       );
+
+      socket.on('ping_check', (clientTs: number, ack?: (serverTs: number) => void) => {
+        if (typeof ack === 'function') {
+          ack(clientTs);
+        }
+      });
 
       socket.on(
         'create_room',
@@ -354,6 +361,14 @@ export class SocketGateway {
         }
         case 'LUCKY_COIN_TRIGGERED': {
           this.io.to(room.id).emit('lucky_coin_triggered', ev);
+          break;
+        }
+        case 'ITEM_UNLOCKED': {
+          this.io.to(room.id).emit('item_unlocked', ev);
+          break;
+        }
+        case 'WIN_STREAK_BONUS': {
+          this.io.to(room.id).emit('win_streak_bonus', ev);
           break;
         }
         case 'PLAYER_TIMED_OUT': {

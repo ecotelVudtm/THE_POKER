@@ -1,11 +1,14 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import { AccountStats, SkillMastery } from '../../../domain/entities/Account';
+import { ItemType } from '../../../domain/value-objects/Item';
 import { DebtRecord } from '../../../domain/value-objects/Loan';
 
 export interface AccountDocument extends Document {
   username: string;
   displayName: string;
+  passwordHash?: string;
   chips: number;
+  ownedItems: ItemType[];
   skillMastery: SkillMastery;
   debtHistory: DebtRecord[];
   stats: AccountStats;
@@ -57,10 +60,19 @@ const AccountSchema = new Schema<AccountDocument>(
       required: true,
       trim: true,
     },
+    passwordHash: {
+      type: String,
+      default: undefined,
+    },
     chips: {
       type: Number,
       default: 10000,
       min: 0,
+    },
+    ownedItems: {
+      type: [String],
+      enum: ['PHONE', 'INCENSE_BOWL', 'LUCKY_MANGO', 'ICED_TEA', 'LUCKY_COIN'],
+      default: [],
     },
     skillMastery: {
       sleightOfHand: { type: MasteryProgressSchema, default: () => ({ level: 1, exp: 0 }) },

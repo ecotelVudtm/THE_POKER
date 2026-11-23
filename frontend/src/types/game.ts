@@ -55,6 +55,7 @@ export interface Account {
   username: string;
   displayName: string;
   chips: number;
+  ownedItems: ItemType[];
   skillMastery: SkillMastery;
   debtHistory: DebtRecord[];
   stats: {
@@ -108,6 +109,8 @@ export interface PublicPlayerView {
   timeBankSeconds: number;
   turnRemainingSeconds: number;
   via: number;
+  winStreak: number;
+  ownedItems: ItemType[];
   itemsState: PlayerItemsState;
   statusEffects: PlayerStatusEffects;
   activeLoan: ActiveLoan | null;

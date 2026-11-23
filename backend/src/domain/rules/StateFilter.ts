@@ -1,7 +1,7 @@
 import { Card } from '../entities/Card';
 import { Player, PlayerStatusEffects } from '../entities/Player';
 import { GamePhase, HandWinner, Room, RoomLogEntry, RoomStatus, SidePot } from '../entities/Room';
-import { PlayerItemsState } from '../value-objects/Item';
+import { ItemType, PlayerItemsState } from '../value-objects/Item';
 import { ActiveLoan } from '../value-objects/Loan';
 import { SkillMastery } from '../entities/Account';
 
@@ -23,6 +23,8 @@ export interface PublicPlayerView {
   timeBankSeconds: number;
   turnRemainingSeconds: number;
   via: number;
+  winStreak: number;
+  ownedItems: ItemType[];
   itemsState: PlayerItemsState;
   statusEffects: PlayerStatusEffects;
   activeLoan: ActiveLoan | null;
@@ -86,6 +88,8 @@ function filterPlayerForViewer(
     timeBankSeconds: player.timeBankSeconds,
     turnRemainingSeconds: player.turnRemainingSeconds,
     via: player.via,
+    winStreak: player.winStreak,
+    ownedItems: [...player.ownedItems],
     itemsState: { ...player.itemsState },
     statusEffects: { ...player.statusEffects },
     activeLoan: player.activeLoan ? { ...player.activeLoan } : null,

@@ -1,6 +1,8 @@
+import { memo, useMemo } from 'react';
 import { Html } from '@react-three/drei';
 import { GamePhase, PublicPlayerView } from '../../types/game';
 import { SCENE_TOKENS } from '../../styles/themeTokens';
+import { getVoxelFaceTexture } from '../ProceduralTextures';
 import { PlayingCard3D } from '../PlayingCard3D';
 import { ChipStack3D } from '../ChipStack3D';
 
@@ -8,10 +10,13 @@ export interface OpponentSeat3DProps {
   player: PublicPlayerView;
   position: [number, number, number];
   cardOffset: [number, number, number];
+  chipBankOffset: [number, number, number];
   isCurrentTurn: boolean;
   isDealer: boolean;
   phase: GamePhase;
 }
+
+const SHIRT_COLORS = ['#2563eb', '#b45309', '#7c3aed', '#0f766e', '#be123c'];
 
 function formatTimeBank(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -19,52 +24,113 @@ function formatTimeBank(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export function OpponentSeat3D({
+/**
+ * Minecraft-style blocky seated player avatar with pixel face, blocky shoulders & square turn highlight.
+ */
+export const OpponentSeat3D = memo(function OpponentSeat3D({
   player,
   position,
   cardOffset,
+  chipBankOffset,
   isCurrentTurn,
   isDealer,
   phase,
 }: OpponentSeat3DProps) {
+  const faceTex = useMemo(() => getVoxelFaceTexture(player.seatIndex), [player.seatIndex]);
+  const shirtColor = SHIRT_COLORS[player.seatIndex % SHIRT_COLORS.length];
   const lowTime = player.timeBankSeconds < 45;
   const dimmed = player.folded || player.eliminated;
 
+  const statusTag = player.timedOut
+    ? 'HẾT GIỜ'
+    : player.allIn
+      ? 'TẤT TAY'
+      : player.folded
+        ? 'BỎ BÀI'
+        : player.exposedCardIndices.length > 0
+          ? 'LỘ TẨY'
+          : null;
+
+  // Face towards table center (0, 0, 0)
+  const lookAngleY = Math.atan2(-position[0], -position[2]);
+
   return (
     <group position={position}>
-      {/* Stylized 2.5D Avatar Pedestal & Bust */}
-      <mesh castShadow receiveShadow position={[0, 0.12, 0]}>
-        <cylinderGeometry args={[0.58, 0.66, 0.22, 24]} />
-        <meshStandardMaterial
-          color={dimmed ? SCENE_TOKENS.seats.foldedTint : SCENE_TOKENS.seats.pedestal}
-          roughness={0.5}
-        />
-      </mesh>
-
-      {/* Active Turn Glowing Ring */}
-      {isCurrentTurn && (
-        <mesh position={[0, 0.24, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.62, 0.78, 32]} />
-          <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
+      <group rotation={[0, lookAngleY, 0]}>
+        {/* Blocky seat pedestal */}
+        <mesh castShadow receiveShadow position={[0, 0.1, 0]}>
+          <boxGeometry args={[0.96, 0.2, 0.96]} />
+          <meshStandardMaterial
+            color={dimmed ? SCENE_TOKENS.seats.foldedTint : SCENE_TOKENS.seats.pedestal}
+            roughness={0.7}
+          />
         </mesh>
-      )}
 
-      {/* Avatar torso */}
-      <mesh castShadow position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[0.26, 0.36, 0.52, 18]} />
-        <meshStandardMaterial
-          color={dimmed ? SCENE_TOKENS.seats.foldedTint : SCENE_TOKENS.seats.avatarBody}
-          roughness={0.55}
-        />
-      </mesh>
+        {/* Active Turn Square Voxel Frame (strictly non-overlapping corners) */}
+        {isCurrentTurn && (
+          <group position={[0, 0.22, 0]}>
+            <mesh position={[0, 0, -0.54]}>
+              <boxGeometry args={[1.16, 0.04, 0.08]} />
+              <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
+            </mesh>
+            <mesh position={[0, 0, 0.54]}>
+              <boxGeometry args={[1.16, 0.04, 0.08]} />
+              <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
+            </mesh>
+            <mesh position={[-0.54, 0, 0]}>
+              <boxGeometry args={[0.08, 0.04, 1.0]} />
+              <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
+            </mesh>
+            <mesh position={[0.54, 0, 0]}>
+              <boxGeometry args={[0.08, 0.04, 1.0]} />
+              <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
+            </mesh>
+          </group>
+        )}
 
-      {/* Avatar head */}
-      <mesh castShadow position={[0, 0.94, 0]}>
-        <sphereGeometry args={[0.24, 18, 18]} />
-        <meshStandardMaterial color={SCENE_TOKENS.seats.avatarHead} roughness={0.45} />
-      </mesh>
+        {/* Minecraft Torso */}
+        <mesh castShadow position={[0, 0.52, 0]}>
+          <boxGeometry args={[0.54, 0.62, 0.34]} />
+          <meshStandardMaterial
+            color={dimmed ? SCENE_TOKENS.seats.foldedTint : shirtColor}
+            roughness={0.7}
+          />
+        </mesh>
 
-      {/* Opponent Hole Cards (auto-flip if exposed by Lộ Tẩy or Showdown) */}
+        {/* Left & Right Blocky Arms */}
+        <mesh castShadow position={[-0.37, 0.52, 0.04]}>
+          <boxGeometry args={[0.18, 0.54, 0.22]} />
+          <meshStandardMaterial
+            color={dimmed ? SCENE_TOKENS.seats.foldedTint : shirtColor}
+            roughness={0.7}
+          />
+        </mesh>
+        <mesh castShadow position={[0.37, 0.52, 0.04]}>
+          <boxGeometry args={[0.18, 0.54, 0.22]} />
+          <meshStandardMaterial
+            color={dimmed ? SCENE_TOKENS.seats.foldedTint : shirtColor}
+            roughness={0.7}
+          />
+        </mesh>
+
+        {/* Minecraft Cube Head */}
+        <mesh castShadow position={[0, 1.06, 0]}>
+          <boxGeometry args={[0.48, 0.48, 0.48]} />
+          <meshStandardMaterial color="#e5b88d" roughness={0.65} />
+        </mesh>
+        {/* Crisp Pixel Face on Front (+Z) */}
+        <mesh position={[0, 1.06, 0.242]}>
+          <planeGeometry args={[0.48, 0.48]} />
+          <meshStandardMaterial map={faceTex} roughness={0.65} />
+        </mesh>
+        {/* Blocky Hair Cap */}
+        <mesh position={[0, 1.31, 0]}>
+          <boxGeometry args={[0.52, 0.08, 0.52]} />
+          <meshStandardMaterial color="#2b1d14" roughness={0.8} />
+        </mesh>
+      </group>
+
+      {/* Opponent Hole Cards */}
       {player.holeCards.length > 0 && !player.eliminated && (
         <group position={cardOffset}>
           {player.holeCards.map((card, idx) => {
@@ -85,91 +151,60 @@ export function OpponentSeat3D({
         </group>
       )}
 
-      {/* Current round bet chip stack */}
-      {player.currentBet > 0 && (
+      {/* Opponent's Personal 3D Chip Bank Stacks (placed cleanly clear of cards & deck!) */}
+      {player.chips > 0 && !player.eliminated && (
         <ChipStack3D
-          amount={player.currentBet}
-          position={[cardOffset[0] * 1.45, 0.02, cardOffset[2] * 1.45]}
-          scale={0.75}
+          amount={player.chips}
+          position={[chipBankOffset[0], 0.068, chipBankOffset[2]]}
+          scale={0.72}
         />
       )}
 
-      {/* Floating Opponent HUD Plate */}
-      <Html position={[0, 1.55, 0]} center distanceFactor={13} style={{ pointerEvents: 'none' }}>
+      {/* Clean Borderless Floating Nametag (Minecraft-style shadowed text, no clunky boxes!) */}
+      <Html position={[0, 1.56, 0]} center distanceFactor={13} style={{ pointerEvents: 'none' }}>
         <div
-          className={`w-40 rounded-xl border px-2.5 py-1.5 shadow-warm backdrop-blur-md transition-all ${
-            isCurrentTurn
-              ? 'border-border-gold bg-surface-elevated/95 shadow-goldGlow'
-              : 'border-border-subtle/70 bg-surface-panel/90'
-          } ${dimmed ? 'opacity-65' : ''}`}
+          className={`flex flex-col items-center whitespace-nowrap text-center transition-opacity ${
+            dimmed ? 'opacity-50' : ''
+          }`}
+          style={{ textShadow: '2px 2px 0 rgba(0,0,0,0.92), -1px -1px 0 rgba(0,0,0,0.75)' }}
         >
-          <div className="flex items-center justify-between gap-1">
-            <span className="truncate text-xs font-bold text-content-primary">
+          <div className="flex items-center gap-1">
+            <span
+              className={`font-mono text-xs font-extrabold ${
+                isCurrentTurn ? 'text-accent-gold' : 'text-content-primary'
+              }`}
+            >
               {player.displayName}
             </span>
             {isDealer && (
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent-gold text-[10px] font-extrabold text-content-inverse">
+              <span className="bg-accent-gold px-1 font-mono text-[9px] font-extrabold text-content-inverse">
                 D
               </span>
             )}
           </div>
 
-          <div className="mt-0.5 flex items-center justify-between font-mono text-[11px]">
-            <span className="font-bold text-accent-gold">
-              {player.chips.toLocaleString()}
-            </span>
-            <span
-              className={`font-semibold ${
-                lowTime ? 'animate-pulse text-status-danger' : 'text-content-secondary'
-              }`}
-            >
-              ⏱ {formatTimeBank(player.timeBankSeconds)}
+          <div className="flex items-center gap-2 font-mono text-[11px]">
+            <span className="font-extrabold text-accent-gold">{player.chips.toLocaleString()}</span>
+            <span className={lowTime ? 'font-bold text-status-danger' : 'text-content-secondary'}>
+              {formatTimeBank(player.timeBankSeconds)}
             </span>
           </div>
 
-          {/* Mini Vía Bar */}
-          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-canvas/80">
+          {/* Slim 3px Vía bar */}
+          <div className="mt-0.5 h-[3px] w-20 bg-surface-canvas/80">
             <div
-              className="h-full rounded-full bg-accent-via transition-all"
+              className="h-full bg-accent-via"
               style={{ width: `${Math.min(100, player.via)}%` }}
             />
           </div>
 
-          {/* Status badges */}
-          <div className="mt-1 flex flex-wrap gap-1">
-            {player.timedOut && (
-              <span className="rounded bg-status-danger/20 px-1 text-[9px] font-bold text-status-danger">
-                TIME OUT
-              </span>
-            )}
-            {player.folded && !player.timedOut && (
-              <span className="rounded bg-surface-canvas/80 px-1 text-[9px] font-semibold text-content-muted">
-                BỎ BÀI
-              </span>
-            )}
-            {player.allIn && (
-              <span className="rounded bg-status-warning/25 px-1 text-[9px] font-bold text-status-warning">
-                ALL-IN
-              </span>
-            )}
-            {player.exposedCardIndices.length > 0 && (
-              <span className="rounded bg-status-danger/25 px-1 text-[9px] font-bold text-status-danger">
-                LỘ TẨY!
-              </span>
-            )}
-            {player.statusEffects.blessed && (
-              <span className="rounded bg-accent-gold/20 px-1 text-[9px] font-semibold text-accent-gold">
-                🪔 PHÚC
-              </span>
-            )}
-            {player.statusEffects.pressured && (
-              <span className="rounded bg-status-danger/20 px-1 text-[9px] font-semibold text-status-danger">
-                ⚡ ÁP LỰC
-              </span>
-            )}
-          </div>
+          {statusTag && (
+            <div className="mt-0.5 font-mono text-[10px] font-extrabold tracking-wider text-status-warning">
+              {statusTag}
+            </div>
+          )}
         </div>
       </Html>
     </group>
   );
-}
+});

@@ -1,7 +1,8 @@
 import crypto from 'crypto';
-import { Player } from '../../domain/entities/Player';
-import { BetAction, Room } from '../../domain/entities/Room';
+import { Card } from '../../domain/entities/Card';
+import { BetAction } from '../../domain/entities/Room';
 import { estimateHandStrength } from '../../domain/rules/HandEvaluator';
+import { FilteredRoomState, PublicPlayerView } from '../../domain/rules/StateFilter';
 import { ITEM_CONFIG, ItemType } from '../../domain/value-objects/Item';
 
 export interface BotDecision {
@@ -10,71 +11,90 @@ export interface BotDecision {
   raiseAmount?: number;
 }
 
+/**
+ * Strictly Fair Fog-of-War Bot AI Engine.
+ * Accepts ONLY `FilteredRoomState` (the exact same state a human client sees):
+ * - NEVER has access to `room.deck` or any unexposed opponent `holeCards` (they are `null`).
+ * - Can only see its own 2 hole cards, revealed community cards, pot, bets, and any publicly exposed (Lộ Tẩy) cards.
+ */
 export class BotAIEngine {
-  public decide(room: Room, bot: Player): BotDecision {
-    const strength = estimateHandStrength(bot.holeCards, room.communityCards);
-    const toCall = Math.max(0, room.currentBet - bot.currentBet);
-    const potOdds = toCall > 0 ? toCall / Math.max(1, room.pot + toCall) : 0;
+  public decide(view: FilteredRoomState, bot: PublicPlayerView): BotDecision {
+    const ownCards = bot.holeCards.filter((c): c is Card => c !== null);
+    const strength = estimateHandStrength(ownCards, view.communityCards);
+    const toCall = Math.max(0, view.currentBet - bot.currentBet);
+    const potOdds = toCall > 0 ? toCall / Math.max(1, view.pot + toCall) : 0;
     const roll = crypto.randomInt(0, 100);
 
-    // Occasionally use ICED_TEA or INCENSE_BOWL for lively gameplay
+    // Distinct human-like personalities per seat so bots don't behave robotically
+    // seat 1: curious caller | seat 2: balanced | seat 3: bold bluffer
+    const boldness = bot.seatIndex % 3 === 0 ? 0.12 : bot.seatIndex % 3 === 1 ? 0.06 : 0.0;
+
+    // Occasionally use owned items (ICED_TEA / INCENSE_BOWL)
     let itemToUse: ItemType | undefined;
     if (
+      bot.ownedItems.includes('ICED_TEA') &&
       bot.itemsState.icedTeaCooldownHands === 0 &&
       bot.itemsState.lockedItem !== 'ICED_TEA' &&
-      (bot.timeBankSeconds < 180 || roll < 12)
+      (bot.timeBankSeconds < 180 || roll < 10)
     ) {
       itemToUse = 'ICED_TEA';
     } else if (
+      bot.ownedItems.includes('INCENSE_BOWL') &&
       bot.itemsState.incenseCooldownHands === 0 &&
       bot.itemsState.lockedItem !== 'INCENSE_BOWL' &&
       bot.via >= ITEM_CONFIG.INCENSE_BOWL.viaCost &&
       !bot.statusEffects.blessed &&
-      roll >= 12 &&
-      roll < 28
+      roll >= 10 &&
+      roll < 24
     ) {
       itemToUse = 'INCENSE_BOWL';
     }
 
-    // Strong hand: raise or all-in
-    if (strength >= 0.72) {
-      if (bot.chips <= toCall + room.minRaise) {
+    const effectiveStrength = Math.min(1, strength + boldness);
+
+    // Strong hand: raise, call, or all-in
+    if (effectiveStrength >= 0.72) {
+      if (bot.chips <= toCall + view.minRaise) {
         return { itemToUse, action: 'ALL_IN' };
       }
-      if (roll < 70) {
+      if (roll < 68) {
         const raiseBy = Math.min(
           bot.chips - toCall,
-          Math.max(room.minRaise, Math.floor(room.bigBlind * (2 + (roll % 3))))
+          Math.max(view.minRaise, Math.floor(view.bigBlind * (2 + (roll % 3))))
         );
         return { itemToUse, action: 'RAISE', raiseAmount: raiseBy };
       }
       return { itemToUse, action: toCall === 0 ? 'CHECK' : 'CALL' };
     }
 
-    // Medium hand: call/check or occasional bluff raise
-    if (strength >= 0.42) {
+    // Medium hand: call reasonable bets, check, or occasional semi-bluff
+    if (effectiveStrength >= 0.4) {
       if (toCall === 0) {
-        if (roll < 22 && bot.chips > room.minRaise) {
-          return { itemToUse, action: 'RAISE', raiseAmount: room.minRaise };
+        if (roll < 25 && bot.chips > view.minRaise) {
+          return { itemToUse, action: 'RAISE', raiseAmount: view.minRaise };
         }
         return { itemToUse, action: 'CHECK' };
       }
-      if (potOdds <= strength + 0.08 || toCall <= room.bigBlind * 2) {
+      if (
+        potOdds <= effectiveStrength + 0.14 ||
+        toCall <= view.bigBlind * 4 ||
+        (toCall <= bot.chips * 0.25 && roll < 55)
+      ) {
         return { itemToUse, action: toCall >= bot.chips ? 'ALL_IN' : 'CALL' };
       }
       return { itemToUse, action: 'FOLD' };
     }
 
-    // Weak hand: check if free, occasional bluff, otherwise fold
+    // Weak hand: check if free, occasional bluff or curious small call, otherwise fold
     if (toCall === 0) {
-      if (roll < 10 && bot.chips > room.minRaise) {
-        return { itemToUse, action: 'RAISE', raiseAmount: room.minRaise };
+      if (roll < 14 && bot.chips > view.minRaise) {
+        return { itemToUse, action: 'RAISE', raiseAmount: view.minRaise };
       }
       return { itemToUse, action: 'CHECK' };
     }
 
-    if (toCall <= room.bigBlind && roll < 30) {
-      return { itemToUse, action: 'CALL' };
+    if (toCall <= view.bigBlind * 2 && roll < 42) {
+      return { itemToUse, action: toCall >= bot.chips ? 'ALL_IN' : 'CALL' };
     }
 
     return { itemToUse, action: 'FOLD' };

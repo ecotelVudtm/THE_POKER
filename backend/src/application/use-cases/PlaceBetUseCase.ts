@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import {
   addVia,
   Player,
@@ -14,7 +15,7 @@ import {
   evaluateBestHand,
 } from '../../domain/rules/HandEvaluator';
 import { calculateSidePots, distributePots } from '../../domain/rules/PotCalculator';
-import { ITEM_CONFIG } from '../../domain/value-objects/Item';
+import { ALL_ITEMS, ITEM_CONFIG } from '../../domain/value-objects/Item';
 import { GameDomainEvent } from '../dtos/GameEvents';
 
 export interface PlaceBetInput {
@@ -329,10 +330,12 @@ export class PlaceBetUseCase {
 
     room.lastWinners = winners;
 
-    // LUCKY_COIN passive: refund 15% of bet if player lost an All-In with initial win prob < 25%
+    // LUCKY_COIN passive: refund 15% of bet if player owns LUCKY_COIN and lost an All-In with initial win prob < 25%
     for (const player of room.players) {
+      const ownsCoin = player.ownedItems.includes('LUCKY_COIN');
       const isCoinLocked = player.itemsState.lockedItem === 'LUCKY_COIN';
       if (
+        ownsCoin &&
         !isCoinLocked &&
         player.allIn &&
         !winnerIds.has(player.accountId) &&
@@ -366,15 +369,72 @@ export class PlaceBetUseCase {
   private async syncAccountsAfterHand(
     room: Room,
     winnerIds: Set<string>,
-    _events: GameDomainEvent[]
+    events: GameDomainEvent[]
   ): Promise<void> {
     for (const player of room.players) {
+      const won = winnerIds.has(player.accountId);
+
+      // Track consecutive win streak for every player
+      if (won) {
+        player.winStreak += 1;
+        if (player.winStreak % 3 === 0) {
+          const chipBonus = Math.floor(player.chips * 0.5);
+          const viaBonus = 30;
+          player.chips += chipBonus;
+          addVia(player, viaBonus);
+          events.push({
+            type: 'WIN_STREAK_BONUS',
+            roomId: room.id,
+            accountId: player.accountId,
+            displayName: player.displayName,
+            streak: player.winStreak,
+            chipBonus,
+            viaBonus,
+          });
+          appendRoomLog(
+            room,
+            `🔥 CHUỖI ${player.winStreak} THẮNG LIÊN TIẾP! ${player.displayName} nhận thưởng +${chipBonus.toLocaleString()} chip (+50%) & +${viaBonus} Vía!`
+          );
+        }
+      } else {
+        player.winStreak = 0;
+      }
+
       if (player.isBot) continue;
       const account = await this.accountRepo.findById(player.accountId);
       if (!account) continue;
       account.chips = player.chips;
-      if (winnerIds.has(player.accountId)) {
+      if (won) {
         account.stats.wins += 1;
+        player.matchWins += 1;
+
+        // Every 3 wins in THIS match -> gift 1 random unowned item for this match!
+        if (player.matchWins % 3 === 0) {
+          const unowned = ALL_ITEMS.filter((item) => !player.ownedItems.includes(item));
+          if (unowned.length > 0) {
+            const gifted = unowned[crypto.randomInt(0, unowned.length)];
+            player.ownedItems.push(gifted);
+            events.push({
+              type: 'ITEM_UNLOCKED',
+              roomId: room.id,
+              accountId: player.accountId,
+              displayName: player.displayName,
+              item: gifted,
+              totalWins: player.matchWins,
+            });
+            appendRoomLog(
+              room,
+              `🎁 ${player.displayName} thắng ${player.matchWins} ván trong bàn — được tặng ${gifted}!`
+            );
+          } else {
+            player.chips += 500;
+            account.chips = player.chips;
+            appendRoomLog(
+              room,
+              `🎁 ${player.displayName} đạt mốc ${player.matchWins} thắng — thưởng +500 chip!`
+            );
+          }
+        }
       }
       await this.accountRepo.update(account);
     }

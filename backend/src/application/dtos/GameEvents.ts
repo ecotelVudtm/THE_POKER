@@ -48,6 +48,23 @@ export type GameDomainEvent =
       winProbability: number;
     }
   | {
+      type: 'ITEM_UNLOCKED';
+      roomId: string;
+      accountId: string;
+      displayName: string;
+      item: ItemType;
+      totalWins: number;
+    }
+  | {
+      type: 'WIN_STREAK_BONUS';
+      roomId: string;
+      accountId: string;
+      displayName: string;
+      streak: number;
+      chipBonus: number;
+      viaBonus: number;
+    }
+  | {
       type: 'PLAYER_TIMED_OUT';
       roomId: string;
       accountId: string;

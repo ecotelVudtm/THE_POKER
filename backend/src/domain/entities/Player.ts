@@ -1,6 +1,6 @@
 import { Card } from './Card';
 import { createDefaultSkillMastery, SkillMastery } from './Account';
-import { createInitialItemsState, PlayerItemsState } from '../value-objects/Item';
+import { createInitialItemsState, ItemType, PlayerItemsState } from '../value-objects/Item';
 import { ActiveLoan } from '../value-objects/Loan';
 import { MiniGameChallenge } from '../value-objects/Skill';
 
@@ -41,6 +41,9 @@ export interface Player {
   timeBankSeconds: number;
   turnRemainingSeconds: number;
   via: number;
+  matchWins: number;
+  winStreak: number;
+  ownedItems: ItemType[];
   itemsState: PlayerItemsState;
   statusEffects: PlayerStatusEffects;
   activeLoan: ActiveLoan | null;
@@ -69,6 +72,7 @@ export function createPlayer(params: {
   isBot: boolean;
   seatIndex: number;
   chips: number;
+  ownedItems?: ItemType[];
   skillMastery?: SkillMastery;
 }): Player {
   return {
@@ -90,6 +94,9 @@ export function createPlayer(params: {
     timeBankSeconds: INITIAL_TIME_BANK_SECONDS,
     turnRemainingSeconds: TURN_TIME_LIMIT_SECONDS,
     via: INITIAL_VIA,
+    matchWins: 0,
+    winStreak: 0,
+    ownedItems: params.ownedItems ? [...params.ownedItems] : [],
     itemsState: createInitialItemsState(),
     statusEffects: createInitialStatusEffects(),
     activeLoan: null,

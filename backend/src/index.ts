@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import http from 'http';
+import path from 'path';
 import { AuthenticateAccountUseCase } from './application/use-cases/AuthenticateAccountUseCase';
 import { JoinRoomUseCase } from './application/use-cases/JoinRoomUseCase';
 import { PlaceBetUseCase } from './application/use-cases/PlaceBetUseCase';
@@ -21,6 +22,8 @@ import { AccountController } from './presentation/http/controllers/AccountContro
 import { RoomController } from './presentation/http/controllers/RoomController';
 import { SocketGateway } from './presentation/socket/SocketGateway';
 
+// Load both monorepo root .env and local backend/.env
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
 async function bootstrap(): Promise<void> {

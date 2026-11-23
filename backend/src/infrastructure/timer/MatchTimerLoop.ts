@@ -5,6 +5,7 @@ import { SubmitMiniGameUseCase } from '../../application/use-cases/SubmitMiniGam
 import { UseItemUseCase } from '../../application/use-cases/UseItemUseCase';
 import { appendRoomLog, Room } from '../../domain/entities/Room';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
+import { filterRoomStateForViewer } from '../../domain/rules/StateFilter';
 import { BotAIEngine } from '../ai/BotAIEngine';
 
 export interface TimerCallbacks {
@@ -154,7 +155,12 @@ export class MatchTimerLoop {
             const ticks = (this.botThinkTicks.get(botKey) ?? 0) + 1;
             if (ticks >= 2) {
               this.botThinkTicks.delete(botKey);
-              const decision = this.botAI.decide(room, actorAfterTick);
+              // Strict Fog-of-War: Bot ONLY receives the exact same filtered state a human player gets!
+              const botViewState = filterRoomStateForViewer(room, actorAfterTick.accountId);
+              const botSelfView = botViewState.players.find(
+                (p) => p.accountId === actorAfterTick.accountId
+              )!;
+              const decision = this.botAI.decide(botViewState, botSelfView);
               if (decision.itemToUse) {
                 try {
                   await this.useItemUseCase.execute({

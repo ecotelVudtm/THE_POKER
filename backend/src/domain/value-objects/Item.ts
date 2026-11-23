@@ -5,6 +5,14 @@ export type ItemType =
   | 'ICED_TEA'
   | 'LUCKY_COIN';
 
+export const ALL_ITEMS: readonly ItemType[] = [
+  'PHONE',
+  'INCENSE_BOWL',
+  'LUCKY_MANGO',
+  'ICED_TEA',
+  'LUCKY_COIN',
+];
+
 export const LOCKABLE_ITEMS: readonly ItemType[] = [
   'INCENSE_BOWL',
   'LUCKY_MANGO',

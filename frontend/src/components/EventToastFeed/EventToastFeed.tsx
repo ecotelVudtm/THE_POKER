@@ -4,22 +4,22 @@ export interface EventToastFeedProps {
   toasts: ToastMessage[];
 }
 
-const TONE_CLASSES: Record<ToastMessage['tone'], string> = {
-  info: 'border-border-subtle bg-surface-panel/90 text-content-primary',
-  success: 'border-status-success/50 bg-surface-panel/95 text-status-success',
-  warning: 'border-status-warning/50 bg-surface-panel/95 text-status-warning',
-  danger: 'border-status-danger/60 bg-status-danger/20 text-content-primary',
+const TONE_TEXT: Record<ToastMessage['tone'], string> = {
+  info: 'text-content-secondary',
+  success: 'text-accent-jade',
+  warning: 'text-status-warning',
+  danger: 'text-status-danger',
 };
 
 export function EventToastFeed({ toasts }: EventToastFeedProps) {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none flex max-w-sm flex-col gap-1.5">
-      {toasts.map((toast) => (
+    <div className="pointer-events-none flex max-w-xs flex-col gap-1">
+      {toasts.slice(-4).map((toast) => (
         <div
           key={toast.id}
-          className={`rounded-xl border px-3 py-2 text-xs font-medium shadow-warm backdrop-blur-md ${TONE_CLASSES[toast.tone]}`}
+          className={`w-fit border-l-2 border-border-gold bg-surface-canvas/80 px-2.5 py-1 font-mono text-[11px] font-semibold ${TONE_TEXT[toast.tone]}`}
         >
           {toast.text}
         </div>

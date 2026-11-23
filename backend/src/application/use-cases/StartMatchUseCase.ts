@@ -1,12 +1,14 @@
 import crypto from 'crypto';
+import { createDefaultSkillMastery } from '../../domain/entities/Account';
 import {
   addVia,
+  INITIAL_TIME_BANK_SECONDS,
   TURN_TIME_LIMIT_SECONDS,
 } from '../../domain/entities/Player';
 import { appendRoomLog, Room } from '../../domain/entities/Room';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
 import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
-import { LOCKABLE_ITEMS } from '../../domain/value-objects/Item';
+import { createInitialItemsState, LOCKABLE_ITEMS } from '../../domain/value-objects/Item';
 import {
   accrueLoanForNextHand,
   LOAN_DEFAULT_ITEM_LOCK_HANDS,
@@ -39,6 +41,28 @@ export class StartMatchUseCase {
     }
 
     const events: GameDomainEvent[] = [];
+
+    // Full match reset when starting from WAITING or restarting after FINISHED
+    // Items & Skill Mastery are per-match only; only Chips persist permanently!
+    const isFreshMatch = room.status === 'WAITING' || room.status === 'FINISHED';
+    if (isFreshMatch) {
+      room.handNumber = 0;
+      for (const player of room.players) {
+        player.timeBankSeconds = INITIAL_TIME_BANK_SECONDS;
+        player.turnRemainingSeconds = TURN_TIME_LIMIT_SECONDS;
+        player.timedOut = false;
+        player.eliminated = false;
+        player.folded = false;
+        player.matchWins = 0;
+        player.winStreak = 0;
+        player.ownedItems = player.isBot ? ['ICED_TEA', 'INCENSE_BOWL'] : [];
+        player.skillMastery = createDefaultSkillMastery();
+        player.itemsState = createInitialItemsState();
+        if (player.chips <= 0) {
+          player.chips = 10000;
+        }
+      }
+    }
 
     // Update elimination status, cooldowns, and loan interest for the new hand
     for (const player of room.players) {
@@ -115,13 +139,21 @@ export class StartMatchUseCase {
     }
 
     const activePlayers = room.players.filter((p) => !p.eliminated);
-    if (activePlayers.length < 2) {
+    const activeHumans = activePlayers.filter((p) => !p.isBot);
+    if (activePlayers.length < 2 || activeHumans.length === 0) {
       room.status = 'FINISHED';
       room.phase = 'WAITING';
       room.currentTurnIndex = -1;
-      appendRoomLog(room, 'Trận đấu kết thúc — không đủ người chơi có chip/thời gian.');
+      appendRoomLog(room, 'Trận đấu kết thúc — bấm "CHƠI TRẬN MỚI" để reset thời gian 05:00!');
       await this.roomRepo.save(room);
       return { room, events };
+    }
+
+    // Grant +15s time-bank recovery (up to 300s) for surviving players on each new hand
+    if (!isFreshMatch && room.handNumber > 0) {
+      for (const p of activePlayers) {
+        p.timeBankSeconds = Math.min(INITIAL_TIME_BANK_SECONDS, p.timeBankSeconds + 15);
+      }
     }
 
     // Increment match counter on first hand

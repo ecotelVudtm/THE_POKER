@@ -24,7 +24,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
   },
   EAGLE_EYE: {
     type: 'EAGLE_EYE',
-    viaCost: 25,
+    viaCost: 50,
     miniGameType: 'BALANCE_CIRCLE',
     masteryKey: 'eagleEye',
     expOnSuccess: 35,

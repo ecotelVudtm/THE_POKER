@@ -35,9 +35,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['"Be Vietnam Pro"', 'system-ui', 'sans-serif'],
-        display: ['"Be Vietnam Pro"', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        sans: ['"Chakra Petch"', 'system-ui', 'sans-serif'],
+        display: ['"Chakra Petch"', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', '"Chakra Petch"', 'monospace'],
       },
       boxShadow: {
         warm: '0 12px 32px -8px rgba(18, 12, 8, 0.55)',

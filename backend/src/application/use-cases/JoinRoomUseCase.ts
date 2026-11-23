@@ -49,7 +49,7 @@ export class JoinRoomUseCase {
           isBot: false,
           seatIndex: 0,
           chips: hostChips,
-          skillMastery: account.skillMastery,
+          ownedItems: [],
         })
       );
 
@@ -63,6 +63,7 @@ export class JoinRoomUseCase {
             isBot: true,
             seatIndex: i + 1,
             chips: DEFAULT_STARTING_CHIPS,
+            ownedItems: ['ICED_TEA', 'INCENSE_BOWL'],
           })
         );
       }
@@ -84,7 +85,6 @@ export class JoinRoomUseCase {
     const existingPlayer = room.players.find((p) => p.accountId === account.id);
     if (existingPlayer) {
       existingPlayer.socketId = input.socketId;
-      existingPlayer.skillMastery = account.skillMastery;
       await this.roomRepo.save(room);
       return room;
     }
@@ -110,7 +110,7 @@ export class JoinRoomUseCase {
         isBot: false,
         seatIndex,
         chips: startingChips,
-        skillMastery: account.skillMastery,
+        ownedItems: [],
       })
     );
 

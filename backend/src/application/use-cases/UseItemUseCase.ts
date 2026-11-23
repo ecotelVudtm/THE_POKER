@@ -24,6 +24,10 @@ export class UseItemUseCase {
       throw new Error('Folded or eliminated players cannot use items.');
     }
 
+    if (!player.ownedItems.includes(input.itemType)) {
+      throw new Error('Bạn chưa sở hữu đồ vật này! Hãy thắng mỗi 3 ván để nhận đồ ngẫu nhiên.');
+    }
+
     if (player.itemsState.lockedItem === input.itemType && player.itemsState.lockedItemHandsLeft > 0) {
       throw new Error(
         `Item ${input.itemType} is locked for ${player.itemsState.lockedItemHandsLeft} more hand(s) due to debt default.`

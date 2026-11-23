@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Flame } from 'lucide-react';
 import { MiniGameChallenge, MiniGameSubmissionPayload } from '../../types/game';
 
 export interface RhythmTapMiniGameProps {
@@ -89,41 +88,36 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
   const activeBeatIndex = Math.min(beats.length - 1, tapsRef.current.length);
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-status-warning/70 bg-surface-panel/95 p-6 shadow-warm backdrop-blur-md">
+    <div className="voxel-panel w-full max-w-md border-status-warning p-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-status-warning">
-          <Flame className="h-5 w-5" />
-          <h3 className="text-base font-extrabold">Tỏa Khí Thế</h3>
-        </div>
+        <h3 className="font-mono text-base font-extrabold text-status-warning">TỎA KHÍ THẾ</h3>
         <span className="font-mono text-xs font-bold text-content-secondary">
           Đạt tối thiểu 2/3 nhịp
         </span>
       </div>
 
       <p className="mt-1 text-xs text-content-secondary">
-        Bấm <kbd className="rounded bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">Space</kbd> hoặc chạm nút khi vòng ngoài thu khít vào vòng vàng!
+        Bấm <kbd className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 font-mono text-accent-gold">Space</kbd> hoặc chạm nút khi khung ngoài thu khít vào khung vàng!
       </p>
 
-      {/* Concentric Shrinking Rhythm Rings */}
+      {/* Concentric Square Voxel Rhythm Frames */}
       <div
         onClick={registerTap}
-        className="relative mx-auto mt-5 flex h-44 w-44 cursor-pointer select-none items-center justify-center rounded-full bg-surface-canvas"
+        className="relative mx-auto mt-5 flex h-44 w-44 cursor-pointer select-none items-center justify-center border-2 border-border-subtle bg-surface-canvas"
       >
-        {/* Target Inner Ring */}
-        <div className="h-20 w-20 rounded-full border-4 border-accent-gold bg-accent-gold/10 shadow-goldGlow" />
+        <div className="h-20 w-20 border-4 border-accent-gold bg-accent-gold/10" />
 
-        {/* Approaching Rings for all 3 beats */}
         {beats.map((beatMs, idx) => {
           const diff = beatMs - elapsedMs;
           if (diff > APPROACH_WINDOW_MS || diff < -tolerance || tapResults[idx] !== 'pending') {
             return null;
           }
           const progress = Math.max(0, Math.min(1, 1 - diff / APPROACH_WINDOW_MS));
-          const sizePx = 172 - progress * 92; // shrinks from 172px -> 80px
+          const sizePx = 172 - progress * 92;
           return (
             <div
               key={idx}
-              className="pointer-events-none absolute rounded-full border-2 border-status-warning"
+              className="pointer-events-none absolute border-2 border-status-warning"
               style={{
                 width: `${sizePx}px`,
                 height: `${sizePx}px`,
@@ -138,12 +132,11 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
         </span>
       </div>
 
-      {/* Beat Hit Indicators */}
       <div className="mt-4 flex justify-center gap-3">
         {tapResults.map((res, idx) => (
           <div
             key={idx}
-            className={`flex h-7 w-7 items-center justify-center rounded-full border font-mono text-xs font-bold ${
+            className={`flex h-7 w-7 items-center justify-center border-2 font-mono text-xs font-bold ${
               res === 'hit'
                 ? 'border-accent-jade bg-accent-jade text-content-inverse'
                 : res === 'miss'
@@ -159,9 +152,9 @@ export function RhythmTapMiniGame({ challenge, onSubmit }: RhythmTapMiniGameProp
       <button
         type="button"
         onClick={registerTap}
-        className="mt-4 w-full rounded-xl bg-status-warning px-4 py-2.5 text-sm font-extrabold text-content-inverse transition hover:brightness-110 active:scale-[0.99]"
+        className="voxel-btn mt-4 w-full border-2 border-status-warning bg-status-warning px-4 py-2.5 font-mono text-sm font-extrabold text-content-inverse"
       >
-        Bấm đúng nhịp! (Space)
+        BẤM ĐÚNG NHỊP! (SPACE)
       </button>
     </div>
   );

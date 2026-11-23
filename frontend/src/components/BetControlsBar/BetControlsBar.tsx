@@ -34,13 +34,12 @@ export function BetControlsBar({
 
   return (
     <div
-      className={`pointer-events-auto flex flex-col gap-2 rounded-2xl border border-border-subtle bg-surface-panel/95 p-3 shadow-warm backdrop-blur-md transition ${
-        !enabled ? 'opacity-55' : ''
+      className={`voxel-panel pointer-events-auto flex flex-col gap-1.5 px-3 py-2 transition-opacity ${
+        !enabled ? 'opacity-45' : ''
       }`}
     >
-      {/* Quick Raise Slider & Presets */}
       {canRaise && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <input
             type="range"
             min={minRaise}
@@ -51,65 +50,62 @@ export function BetControlsBar({
             onChange={(e) => setRaiseBy(Number(e.target.value))}
             className="h-1.5 flex-1 accent-accent-gold"
           />
-          <span className="min-w-[76px] text-right font-mono text-xs font-bold text-accent-gold">
+          <span className="min-w-[68px] text-right font-mono text-[11px] font-bold text-accent-gold">
             +{raiseBy.toLocaleString()}
           </span>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              disabled={!enabled}
-              onClick={() => setQuickRaise(Math.max(minRaise, pot * 0.5))}
-              className="rounded-lg border border-border-subtle bg-surface-elevated px-2 py-1 text-[11px] font-semibold text-content-secondary hover:border-border-gold hover:text-accent-gold disabled:opacity-40"
-            >
-              1/2 Pot
-            </button>
-            <button
-              type="button"
-              disabled={!enabled}
-              onClick={() => setQuickRaise(Math.max(minRaise, pot))}
-              className="rounded-lg border border-border-subtle bg-surface-elevated px-2 py-1 text-[11px] font-semibold text-content-secondary hover:border-border-gold hover:text-accent-gold disabled:opacity-40"
-            >
-              Pot
-            </button>
-            <button
-              type="button"
-              disabled={!enabled}
-              onClick={() => onPlaceBet('ALL_IN')}
-              className="rounded-lg border border-status-warning/50 bg-status-warning/20 px-2 py-1 text-[11px] font-bold text-status-warning hover:bg-status-warning hover:text-content-inverse disabled:opacity-40"
-            >
-              All-in
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={!enabled}
+            onClick={() => setQuickRaise(Math.max(minRaise, pot * 0.5))}
+            className="voxel-btn border border-border-subtle bg-surface-panel px-1.5 py-0.5 font-mono text-[10px] font-bold text-content-secondary hover:border-border-gold hover:text-accent-gold"
+          >
+            1/2
+          </button>
+          <button
+            type="button"
+            disabled={!enabled}
+            onClick={() => setQuickRaise(Math.max(minRaise, pot))}
+            className="voxel-btn border border-border-subtle bg-surface-panel px-1.5 py-0.5 font-mono text-[10px] font-bold text-content-secondary hover:border-border-gold hover:text-accent-gold"
+          >
+            POT
+          </button>
+          <button
+            type="button"
+            disabled={!enabled}
+            onClick={() => onPlaceBet('ALL_IN')}
+            className="voxel-btn border border-status-warning bg-surface-panel px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-status-warning hover:bg-status-warning hover:text-content-inverse"
+          >
+            ALL-IN
+          </button>
         </div>
       )}
 
-      {/* Primary Poker Action Buttons */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-1.5">
         <button
           type="button"
           disabled={!enabled}
           onClick={() => onPlaceBet('FOLD')}
-          className="rounded-xl border border-status-danger/45 bg-status-danger/15 px-4 py-2.5 text-xs font-bold text-status-danger transition hover:bg-status-danger hover:text-content-primary disabled:opacity-40"
+          className="voxel-btn border-2 border-status-danger bg-status-danger/20 py-2 font-mono text-xs font-extrabold tracking-wider text-status-danger hover:bg-status-danger hover:text-content-primary disabled:opacity-40"
         >
-          Bỏ bài (Fold)
+          BỎ BÀI
         </button>
 
         <button
           type="button"
           disabled={!enabled}
           onClick={() => onPlaceBet(canCheck ? 'CHECK' : 'CALL')}
-          className="rounded-xl bg-accent-jade px-4 py-2.5 text-xs font-extrabold text-content-inverse transition hover:brightness-110 disabled:opacity-40"
+          className="voxel-btn border-2 border-accent-jade bg-accent-jade py-2 font-mono text-xs font-extrabold tracking-wider text-content-inverse disabled:opacity-40"
         >
-          {canCheck ? 'Xem (Check)' : `Theo (${Math.min(myChips, toCall).toLocaleString()})`}
+          {canCheck ? 'XEM' : `THEO ${Math.min(myChips, toCall).toLocaleString()}`}
         </button>
 
         <button
           type="button"
           disabled={!enabled || !canRaise}
           onClick={() => onPlaceBet('RAISE', raiseBy)}
-          className="rounded-xl bg-accent-gold px-4 py-2.5 text-xs font-extrabold text-content-inverse shadow-goldGlow transition hover:brightness-110 disabled:opacity-40"
+          className="voxel-btn border-2 border-border-gold bg-accent-gold py-2 font-mono text-xs font-extrabold tracking-wider text-content-inverse disabled:opacity-40"
         >
-          Tố (+{raiseBy.toLocaleString()})
+          TỐ +{raiseBy.toLocaleString()}
         </button>
       </div>
     </div>
