@@ -4,8 +4,9 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FilteredRoomState, HandWinner } from '../../types/game';
 import { soundEngine } from '../../services/soundEngine';
+import { SCENE_TOKENS } from '../../styles/themeTokens';
 import { breakDownChips, CHIP_DENOMINATIONS } from '../../utils/chipDenominations';
-import { getVoxelChipGeometry } from '../ChipStack3D';
+import { getStripeGeometry, getVoxelChipGeometry } from '../ChipStack3D';
 import { WinEffects3D } from '../WinEffects3D';
 
 export interface SeatPositionMap {
@@ -52,8 +53,9 @@ function PhysicalTableChip({
   chip: TableChipEntity;
   onCollected: (id: number) => void;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const geo = useMemo(() => getVoxelChipGeometry(), []);
+  const stripeGeo = useMemo(() => getStripeGeometry(), []);
 
   const stRef = useRef({
     motionVersion: -1,
@@ -99,7 +101,7 @@ function PhysicalTableChip({
   }
 
   useFrame((_, delta) => {
-    const mesh = meshRef.current;
+    const mesh = groupRef.current;
     const st = stRef.current;
     if (!mesh || st.collected) return;
 
@@ -183,9 +185,18 @@ function PhysicalTableChip({
   });
 
   return (
-    <mesh ref={meshRef} geometry={geo} visible={false} castShadow>
-      <meshStandardMaterial color={chip.color} roughness={0.55} />
-    </mesh>
+    <group ref={groupRef} visible={false}>
+      <mesh geometry={geo} castShadow>
+        <meshStandardMaterial color={chip.color} roughness={0.55} />
+      </mesh>
+      {/* White center inlay square on top & bottom so tossed chips match ChipStack3D 100%! */}
+      <mesh geometry={stripeGeo} position={[0, 0.052, 0]}>
+        <meshStandardMaterial color={SCENE_TOKENS.chips.stripe} roughness={0.6} />
+      </mesh>
+      <mesh geometry={stripeGeo} position={[0, -0.004, 0]}>
+        <meshStandardMaterial color={SCENE_TOKENS.chips.stripe} roughness={0.6} />
+      </mesh>
+    </group>
   );
 }
 

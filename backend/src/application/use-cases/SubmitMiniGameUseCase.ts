@@ -45,6 +45,10 @@ export class SubmitMiniGameUseCase {
       throw new Error('No active mini-game challenge to submit.');
     }
 
+    if (!input.forceTimeout && (!input.payload || typeof input.payload !== 'object')) {
+      throw new Error('Invalid mini-game submission payload.');
+    }
+
     const evaluation = input.forceTimeout
       ? {
           success: false,
@@ -141,14 +145,37 @@ export class SubmitMiniGameUseCase {
         }
       }
     } else {
-      // Failed mini-game -> Lộ Tẩy (unless mangoShield blocks it)
+      // Failed mini-game -> Lộ Tẩy (blocked by Poker Face shield OR passive Lucky Mango!)
+      const hasPassiveMango =
+        player.ownedItems.includes('LUCKY_MANGO') &&
+        player.itemsState.luckyMangoUsesLeft > 0 &&
+        !(
+          player.itemsState.lockedItem === 'LUCKY_MANGO' &&
+          player.itemsState.lockedItemHandsLeft > 0
+        );
+
       if (player.statusEffects.mangoShield) {
         player.statusEffects.mangoShield = false;
         mangoShieldBlocked = true;
         appendRoomLog(
           room,
-          `🥭 Khiên Quả Xoài đã cứu ${player.displayName} khỏi một pha Lộ Tẩy!`
+          `Khiên phòng thủ đã cứu ${player.displayName} khỏi một pha Lộ Tẩy.`
         );
+      } else if (hasPassiveMango) {
+        player.itemsState.luckyMangoUsesLeft -= 1;
+        mangoShieldBlocked = true;
+        if (player.itemsState.luckyMangoUsesLeft <= 0) {
+          player.ownedItems = player.ownedItems.filter((it) => it !== 'LUCKY_MANGO');
+          appendRoomLog(
+            room,
+            `Quả Xoài May Mắn tự động đỡ Lộ Tẩy cho ${player.displayName} (đã hết 2/2 lần).`
+          );
+        } else {
+          appendRoomLog(
+            room,
+            `Quả Xoài May Mắn tự động đỡ Lộ Tẩy cho ${player.displayName} (còn ${player.itemsState.luckyMangoUsesLeft}/2 lần).`
+          );
+        }
       } else {
         const unexposedIndices = [0, 1].filter(
           (i) => i < player.holeCards.length && !player.exposedCardIndices.includes(i)

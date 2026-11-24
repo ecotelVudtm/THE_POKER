@@ -6,8 +6,9 @@ export type ItemType =
   | 'LUCKY_COIN'
   | 'INSTANT_NOODLES';
 
+export const MAX_TABLE_ITEMS = 3;
+
 export const ALL_ITEMS: readonly ItemType[] = [
-  'PHONE',
   'INCENSE_BOWL',
   'LUCKY_MANGO',
   'ICED_TEA',

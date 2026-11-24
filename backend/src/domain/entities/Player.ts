@@ -11,6 +11,9 @@ export const MAX_VIA = 100;
 export const INITIAL_VIA = 30;
 export const VIA_GAIN_PER_ROUND = 10;
 export const VIA_GAIN_ON_WIN = 20;
+export const VIA_GAIN_ON_FOLD = 5;
+export const VIA_GAIN_ON_RAISE = 5;
+export const VIA_GAIN_ON_WIN_STREAK = 50;
 
 export interface PlayerStatusEffects {
   blessed: boolean;
@@ -31,6 +34,10 @@ export interface Player {
   chips: number;
   /** Table chip snapshot last synced to Account so maxBuyIn caps never wipe out reserve chips */
   lastSyncedChips: number;
+  /** Initial chips brought into an Arena room (each +1x buyIn profit awards 1x 500K VND bill) */
+  arenaBuyIn: number;
+  /** Total 500K VND bills already awarded to this player during this Arena session */
+  arenaBillsEarned: number;
   currentBet: number;
   totalBetInHand: number;
   holeCards: Card[];
@@ -92,6 +99,8 @@ export function createPlayer(params: {
     seatIndex: params.seatIndex,
     chips: params.chips,
     lastSyncedChips: params.chips,
+    arenaBuyIn: params.chips,
+    arenaBillsEarned: 0,
     currentBet: 0,
     totalBetInHand: 0,
     holeCards: [],

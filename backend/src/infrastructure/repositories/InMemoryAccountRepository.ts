@@ -19,14 +19,20 @@ import { IAccountRepository } from '../../domain/repositories/IAccountRepository
  */
 export class InMemoryAccountRepository implements IAccountRepository {
   private readonly store = new Map<string, Account>();
-  private readonly filePath: string;
+  private readonly filePath: string | null;
 
-  constructor(persistPath?: string) {
-    this.filePath = persistPath ?? path.resolve(__dirname, '../../../data/accounts.json');
-    this.loadFromDisk();
+  constructor(persistPath?: string | null) {
+    this.filePath =
+      persistPath === null
+        ? null
+        : persistPath ?? path.resolve(__dirname, '../../../data/accounts.json');
+    if (this.filePath) {
+      this.loadFromDisk();
+    }
   }
 
   private loadFromDisk(): void {
+    if (!this.filePath) return;
     try {
       if (!fs.existsSync(this.filePath)) return;
       const raw = fs.readFileSync(this.filePath, 'utf-8');
@@ -35,6 +41,7 @@ export class InMemoryAccountRepository implements IAccountRepository {
       for (const acc of parsed) {
         this.store.set(acc.id, {
           ...acc,
+          vnd500kBills: typeof acc.vnd500kBills === 'number' ? acc.vnd500kBills : 0,
           loanBalance: typeof acc.loanBalance === 'number' ? acc.loanBalance : 0,
           ownedItems: Array.isArray(acc.ownedItems) ? acc.ownedItems : [],
           skillInventory: normalizeSkillInventory(acc.skillInventory),
@@ -64,6 +71,7 @@ export class InMemoryAccountRepository implements IAccountRepository {
   }
 
   private saveToDisk(): void {
+    if (!this.filePath) return;
     try {
       fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
       const data = Array.from(this.store.values());

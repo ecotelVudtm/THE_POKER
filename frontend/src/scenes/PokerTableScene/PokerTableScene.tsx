@@ -4,7 +4,7 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { FilteredRoomState, ItemType, PublicPlayerView } from '../../types/game';
 import { SCENE_TOKENS } from '../../styles/themeTokens';
-import { getFeltTexture, getFloorTexture, getWoodTexture } from '../ProceduralTextures';
+import { getFeltTexture, getFloorTexture, getVnd500kTexture, getWoodTexture } from '../ProceduralTextures';
 import { PlayingCard3D } from '../PlayingCard3D';
 import { ChipStack3D } from '../ChipStack3D';
 import { ChipEffects3D, SeatPositionMap } from '../ChipEffects3D';
@@ -140,6 +140,7 @@ export interface PokerTableSceneProps {
   room: FilteredRoomState | null;
   me: PublicPlayerView | null;
   onUseItem: (item: ItemType) => void;
+  onDiscardItem: (item: ItemType) => void;
   idleShowcase?: boolean;
   /** Pauses the WebGL render loop when covered by a full-screen overlay (e.g. Shop) */
   paused?: boolean;
@@ -149,26 +150,72 @@ const OPPONENT_SLOTS: {
   pos: [number, number, number];
   cardOffset: [number, number, number];
   chipBankOffset: [number, number, number];
+  itemOffsets: [number, number, number][];
 }[] = [
-  { pos: [-5.75, 0, -0.35], cardOffset: [1.35, 0.04, 0.2], chipBankOffset: [1.35, 0.068, 1.35] },
-  { pos: [-3.0, 0, -3.95], cardOffset: [0.5, 0.04, 1.35], chipBankOffset: [-0.85, 0.068, 1.35] },
-  { pos: [0, 0, -4.35], cardOffset: [0, 0.04, 1.4], chipBankOffset: [1.35, 0.068, 1.35] },
-  { pos: [3.0, 0, -3.95], cardOffset: [-0.5, 0.04, 1.35], chipBankOffset: [0.85, 0.068, 1.35] },
-  { pos: [5.75, 0, -0.35], cardOffset: [-1.35, 0.04, 0.2], chipBankOffset: [-1.35, 0.068, 1.35] },
+  {
+    pos: [-5.75, 0, -0.35],
+    cardOffset: [1.35, 0.04, 0.2],
+    chipBankOffset: [1.35, 0.068, 1.35],
+    itemOffsets: [
+      [1.15, 0.07, -1.0],
+      [1.95, 0.07, -1.0],
+      [2.15, 0.07, 1.35],
+    ],
+  },
+  {
+    pos: [-3.0, 0, -3.95],
+    cardOffset: [0.5, 0.04, 1.35],
+    chipBankOffset: [-0.85, 0.068, 1.35],
+    itemOffsets: [
+      [-1.55, 0.07, 1.35],
+      [-0.85, 0.07, 2.15],
+      [0.0, 0.07, 2.2],
+    ],
+  },
+  {
+    pos: [0, 0, -4.35],
+    cardOffset: [0, 0.04, 1.4],
+    chipBankOffset: [1.35, 0.068, 1.35],
+    itemOffsets: [
+      [-1.2, 0.07, 1.4],
+      [-1.95, 0.07, 1.4],
+      [2.15, 0.07, 1.4],
+    ],
+  },
+  {
+    pos: [3.0, 0, -3.95],
+    cardOffset: [-0.5, 0.04, 1.35],
+    chipBankOffset: [0.85, 0.068, 1.35],
+    itemOffsets: [
+      [1.55, 0.07, 1.35],
+      [0.85, 0.07, 2.15],
+      [0.0, 0.07, 2.2],
+    ],
+  },
+  {
+    pos: [5.75, 0, -0.35],
+    cardOffset: [-1.35, 0.04, 0.2],
+    chipBankOffset: [-1.35, 0.068, 1.35],
+    itemOffsets: [
+      [-1.15, 0.07, -1.0],
+      [-1.95, 0.07, -1.0],
+      [-2.15, 0.07, 1.35],
+    ],
+  },
 ];
 
 function CameraRig({ idleShowcase }: { idleShowcase?: boolean }) {
-  const targetPos = useRef(new THREE.Vector3(0, 7.6, 8.9));
+  const targetPos = useRef(new THREE.Vector3(0, 7.1, 8.35));
   useFrame(({ camera, clock }, delta) => {
     if (idleShowcase) {
       const t = clock.getElapsedTime() * 0.14;
-      camera.position.set(Math.sin(t) * 2.0, 8.8, 10.2 + Math.cos(t) * 0.5);
-      camera.lookAt(0, 0, 0.35);
+      camera.position.set(Math.sin(t) * 2.1, 8.2, 9.6 + Math.cos(t) * 0.5);
+      camera.lookAt(0, 0.1, 0.35);
     } else {
-      // Zoomed-in seated perspective: right up close to the felt so cards, chips & items feel big & tactile!
-      targetPos.current.set(0, 7.5, 8.85);
+      // Closer, richer seated perspective so cards, avatars, chips & table items look large and crisp!
+      targetPos.current.set(0, 7.1, 8.35);
       camera.position.lerp(targetPos.current, Math.min(1, delta * 5));
-      camera.lookAt(0, 0, 0.55);
+      camera.lookAt(0, 0.05, 0.5);
     }
   });
   return null;
@@ -182,13 +229,56 @@ const VoxelPokerTable = memo(function VoxelPokerTable() {
 
   return (
     <group>
-      {/* Pixel Hardwood Floor (strictly below table legs) */}
+      {/* Rich Parquet Voxel Hardwood Floor */}
       <mesh receiveShadow position={[0, -0.84, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[42, 42]} />
-        <meshStandardMaterial map={floorTex} roughness={0.92} />
+        <meshStandardMaterial map={floorTex} roughness={0.9} />
       </mesh>
 
-      {/* Non-overlapping Blocky Pedestal Legs */}
+      {/* Cozy Handcrafted Voxel Wooden Tavern Back-Wall & Wainscoting + Warm Lantern Sconces */}
+      <group position={[0, 0, -9.2]}>
+        {/* Lower oak wainscot panel */}
+        <mesh position={[0, 1.4, 0]}>
+          <boxGeometry args={[28, 4.6, 0.4]} />
+          <meshStandardMaterial map={woodTex} roughness={0.82} />
+        </mesh>
+        {/* Brass trim rail across wainscot */}
+        <mesh position={[0, 3.78, 0.24]}>
+          <boxGeometry args={[28, 0.14, 0.12]} />
+          <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.6} roughness={0.4} />
+        </mesh>
+        {/* 4 Vertical oak wall pillars */}
+        {[-7.5, -2.5, 2.5, 7.5].map((px) => (
+          <mesh key={px} position={[px, 2.2, 0.25]}>
+            <boxGeometry args={[0.55, 6.4, 0.35]} />
+            <meshStandardMaterial color={SCENE_TOKENS.table.woodOuter} roughness={0.78} />
+          </mesh>
+        ))}
+        {/* 2 Warm Glowing Voxel Wall Lantern Sconces */}
+        {[-5.0, 5.0].map((lx) => (
+          <group key={lx} position={[lx, 2.8, 0.48]}>
+            <mesh position={[0, -0.35, -0.1]}>
+              <boxGeometry args={[0.18, 0.45, 0.22]} />
+              <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.7} roughness={0.35} />
+            </mesh>
+            <mesh>
+              <boxGeometry args={[0.42, 0.52, 0.42]} />
+              <meshStandardMaterial
+                color="#fef08a"
+                emissive="#f59e0b"
+                emissiveIntensity={1.4}
+                roughness={0.25}
+              />
+            </mesh>
+            <mesh position={[0, 0.3, 0]}>
+              <boxGeometry args={[0.54, 0.1, 0.54]} />
+              <meshStandardMaterial color={SCENE_TOKENS.table.railLeather} roughness={0.65} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* Non-overlapping Blocky Pedestal Legs with Brass Foot Trim */}
       <mesh castShadow receiveShadow position={[-2.2, -0.56, 0]}>
         <boxGeometry args={[1.1, 0.56, 1.8]} />
         <meshStandardMaterial map={woodTex} roughness={0.78} />
@@ -197,7 +287,15 @@ const VoxelPokerTable = memo(function VoxelPokerTable() {
         <boxGeometry args={[1.1, 0.56, 1.8]} />
         <meshStandardMaterial map={woodTex} roughness={0.78} />
       </mesh>
-      {/* Connecting crossbeam strictly between the 2 legs (width 3.3 -> never overlaps legs!) */}
+      <mesh position={[-2.2, -0.8, 0]}>
+        <boxGeometry args={[1.22, 0.08, 1.92]} />
+        <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.65} roughness={0.35} />
+      </mesh>
+      <mesh position={[2.2, -0.8, 0]}>
+        <boxGeometry args={[1.22, 0.08, 1.92]} />
+        <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.65} roughness={0.35} />
+      </mesh>
+      {/* Connecting crossbeam strictly between the 2 legs */}
       <mesh castShadow receiveShadow position={[0, -0.62, 0]}>
         <boxGeometry args={[3.3, 0.28, 0.84]} />
         <meshStandardMaterial map={woodTex} roughness={0.78} />
@@ -208,42 +306,105 @@ const VoxelPokerTable = memo(function VoxelPokerTable() {
         <meshStandardMaterial map={woodTex} roughness={0.72} />
       </mesh>
 
-      {/* Unified Stepped-Zigzag Green Felt (y = 0.02..0.06, cleanly above wood base!) */}
+      {/* Unified Stepped-Zigzag Green Felt (y = 0.02..0.06) */}
       <mesh geometry={feltGeo} position={[0, 0.06, 0]} receiveShadow>
-        <meshStandardMaterial map={feltTex} roughness={0.94} />
+        <meshStandardMaterial map={feltTex} roughness={0.92} />
       </mesh>
 
-      {/* Unified Stepped-Zigzag Dark Leather Rail (y = 0.04..0.32, cleanly frames felt!) */}
+      {/* Unified Stepped-Zigzag Dark Leather Rail (y = 0.04..0.32) */}
       <mesh geometry={railGeo} position={[0, 0.32, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={SCENE_TOKENS.table.railLeather} roughness={0.7} />
+        <meshStandardMaterial color={SCENE_TOKENS.table.railLeather} roughness={0.68} />
       </mesh>
 
-      {/* 4 Square Brass Cup Holders sitting cleanly ON TOP of rail */}
+      {/* 4 Crafted Square Brass Cup Holders with recessed interior */}
       {[
         [-5.0, 0.35, 2.85],
         [5.0, 0.35, 2.85],
         [-5.0, 0.35, -2.85],
         [5.0, 0.35, -2.85],
       ].map(([x, y, z], idx) => (
-        <mesh key={idx} position={[x, y, z]}>
-          <boxGeometry args={[0.32, 0.06, 0.32]} />
-          <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.6} roughness={0.4} />
-        </mesh>
+        <group key={idx} position={[x, y, z]}>
+          <mesh>
+            <boxGeometry args={[0.38, 0.06, 0.38]} />
+            <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.7} roughness={0.35} />
+          </mesh>
+          <mesh position={[0, 0.032, 0]}>
+            <boxGeometry args={[0.24, 0.01, 0.24]} />
+            <meshStandardMaterial color="#1a120d" roughness={0.9} />
+          </mesh>
+        </group>
       ))}
 
-      {/* Voxel Deck Stack in dedicated clear corner (never collides with chips or cards!) */}
-      <mesh castShadow receiveShadow position={[-3.75, 0.15, -1.7]}>
-        <boxGeometry args={[0.78, 0.18, 1.1]} />
-        <meshStandardMaterial color={SCENE_TOKENS.cards.backBase} roughness={0.65} />
-      </mesh>
+      {/* Brass Decorative Rail Rivets along front & back rail */}
+      {[-3.4, -1.7, 0, 1.7, 3.4].map((rx) => (
+        <group key={rx}>
+          <mesh position={[rx, 0.335, 3.82]}>
+            <boxGeometry args={[0.14, 0.03, 0.14]} />
+            <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.75} roughness={0.3} />
+          </mesh>
+          <mesh position={[rx, 0.335, -3.82]}>
+            <boxGeometry args={[0.14, 0.03, 0.14]} />
+            <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.75} roughness={0.3} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Handcrafted Wooden Card Shoe & Voxel Deck Stack (positioned cleanly clear of all seats & items) */}
+      <group position={[-1.12, 0.06, -1.72]} rotation={[0, 0.14, 0]}>
+        <mesh castShadow receiveShadow position={[0, 0.035, 0]}>
+          <boxGeometry args={[0.74, 0.07, 0.98]} />
+          <meshStandardMaterial color={SCENE_TOKENS.table.woodOuter} roughness={0.72} />
+        </mesh>
+        <mesh position={[0, 0.08, -0.44]}>
+          <boxGeometry args={[0.74, 0.15, 0.08]} />
+          <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.6} roughness={0.4} />
+        </mesh>
+        {/* Cream card edges stacked inside shoe */}
+        <mesh castShadow receiveShadow position={[0, 0.125, 0.02]}>
+          <boxGeometry args={[0.62, 0.13, 0.84]} />
+          <meshStandardMaterial color={SCENE_TOKENS.cards.paperEdge} roughness={0.65} />
+        </mesh>
+        {/* Top crimson card back + gold emblem so it clearly reads as the Deck */}
+        <mesh position={[0, 0.194, 0.02]}>
+          <boxGeometry args={[0.56, 0.012, 0.78]} />
+          <meshStandardMaterial color={SCENE_TOKENS.cards.backBase} roughness={0.55} />
+        </mesh>
+        <mesh position={[0, 0.203, 0.02]}>
+          <boxGeometry args={[0.22, 0.008, 0.22]} />
+          <meshStandardMaterial color={SCENE_TOKENS.table.woodGoldInlay} metalness={0.5} roughness={0.4} />
+        </mesh>
+      </group>
     </group>
   );
 });
+
+function ArenaBillsStack3D({ count, position }: { count: number; position: [number, number, number] }) {
+  const billTex = useMemo(() => getVnd500kTexture(), []);
+  const visible = Math.min(12, count);
+  if (visible <= 0) return null;
+
+  return (
+    <group position={position}>
+      {Array.from({ length: visible }).map((_, i) => (
+        <mesh
+          key={i}
+          castShadow
+          position={[0, 0.012 + i * 0.018, 0]}
+          rotation={[0, (i % 3 - 1) * 0.05, 0]}
+        >
+          <boxGeometry args={[0.92, 0.014, 0.44]} />
+          <meshStandardMaterial map={billTex} roughness={0.45} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
 
 export function PokerTableScene({
   room,
   me,
   onUseItem,
+  onDiscardItem,
   idleShowcase = false,
   paused = false,
 }: PokerTableSceneProps) {
@@ -330,15 +491,15 @@ export function PokerTableScene({
 
         {room && (
           <>
-            {/* Community Cards */}
+            {/* Larger, Clearer Community Cards */}
             <group position={[0, 0.08, -0.35]}>
               {room.communityCards.map((card, idx) => (
                 <PlayingCard3D
                   key={card.code}
                   card={card}
-                  targetPosition={[(idx - 2) * 0.94, 0.02, 0]}
+                  targetPosition={[(idx - 2) * 1.04, 0.02, 0]}
                   faceUp={true}
-                  scale={1.02}
+                  scale={1.12}
                 />
               ))}
             </group>
@@ -365,6 +526,7 @@ export function PokerTableScene({
                   position={slot.pos}
                   cardOffset={slot.cardOffset}
                   chipBankOffset={slot.chipBankOffset}
+                  itemOffsets={slot.itemOffsets}
                   isCurrentTurn={room.currentTurnAccountId === player.accountId}
                   isDealer={room.dealerIndex === playerIndex}
                   phase={room.phase}
@@ -377,20 +539,25 @@ export function PokerTableScene({
               <ChipStack3D amount={me.chips} position={[-2.05, 0.068, 2.42]} scale={0.92} />
             )}
 
+            {/* Real PvP Arena: 3D Stack of Earned 500,000 VND Polymer Bills on the Felt! */}
+            {room.mode === 'ARENA' && me && me.arenaBillsEarned > 0 && !me.eliminated && (
+              <ArenaBillsStack3D count={me.arenaBillsEarned} position={[-1.08, 0.068, 2.52]} />
+            )}
+
             {/* Physics Bet/Raise Chips (stay resting on felt!), Pot Sweeps & Rising Winner Name */}
             <ChipEffects3D room={room} seatMap={seatMap} />
 
-            {/* Local Player's Hole Cards */}
+            {/* Larger, Clearer Local Player's Hole Cards */}
             {me && me.holeCards.length > 0 && !me.eliminated && (
-              <group position={[0, 0.16, 3.05]}>
+              <group position={[0, 0.16, 3.0]}>
                 {me.holeCards.map((card, idx) => (
                   <PlayingCard3D
                     key={card ? `${card.code}_${idx}` : idx}
                     card={card}
-                    targetPosition={[(idx - 0.5) * 1.05, 0.04, 0]}
-                    targetRotation={[0.22, (idx - 0.5) * -0.08, 0]}
+                    targetPosition={[(idx - 0.5) * 1.14, 0.04, 0]}
+                    targetRotation={[0.24, (idx - 0.5) * -0.08, 0]}
                     faceUp={Boolean(card)}
-                    scale={1.18}
+                    scale={1.28}
                     exposedHighlight={me.exposedCardIndices.includes(idx)}
                   />
                 ))}
@@ -400,7 +567,9 @@ export function PokerTableScene({
         )}
 
         {/* Render player's earned items ONLY during an active match (never hoverable in Lobby!) */}
-        {!idleShowcase && <TableItems3D me={me} onUseItem={onUseItem} />}
+        {!idleShowcase && (
+          <TableItems3D me={me} onUseItem={onUseItem} onDiscardItem={onDiscardItem} />
+        )}
       </Canvas>
     </div>
   );

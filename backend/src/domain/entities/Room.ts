@@ -3,6 +3,7 @@ import { Deck } from './Deck';
 import { Player } from './Player';
 
 export type RoomStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
+export type RoomMode = 'STANDARD' | 'ARENA';
 
 export type GamePhase =
   | 'WAITING'
@@ -59,6 +60,7 @@ export interface Room {
   id: string;
   name: string;
   hostAccountId: string;
+  mode: RoomMode;
   status: RoomStatus;
   phase: GamePhase;
   maxBuyIn: number;
@@ -84,6 +86,7 @@ export function createRoom(params: {
   id: string;
   name: string;
   hostAccountId: string;
+  mode?: RoomMode;
   maxBuyIn?: number;
   smallBlind?: number;
   bigBlind?: number;
@@ -96,6 +99,7 @@ export function createRoom(params: {
     id: params.id,
     name: params.name,
     hostAccountId: params.hostAccountId,
+    mode: params.mode ?? 'STANDARD',
     status: 'WAITING',
     phase: 'WAITING',
     maxBuyIn: tier.maxBuyIn,

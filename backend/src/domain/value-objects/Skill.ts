@@ -59,7 +59,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
   },
   PRESSURE_AURA: {
     type: 'PRESSURE_AURA',
-    viaCost: 25,
+    viaCost: 20,
     shopPrice: 400,
     miniGameType: 'RHYTHM_TAP',
     masteryKey: 'pressureAura',

@@ -3,7 +3,10 @@ import {
   addVia,
   Player,
   TURN_TIME_LIMIT_SECONDS,
+  VIA_GAIN_ON_FOLD,
+  VIA_GAIN_ON_RAISE,
   VIA_GAIN_ON_WIN,
+  VIA_GAIN_ON_WIN_STREAK,
   VIA_GAIN_PER_ROUND,
 } from '../../domain/entities/Player';
 import { appendRoomLog, BetAction, GamePhase, HandWinner, Room } from '../../domain/entities/Room';
@@ -15,7 +18,7 @@ import {
   evaluateBestHand,
 } from '../../domain/rules/HandEvaluator';
 import { calculateSidePots, distributePots } from '../../domain/rules/PotCalculator';
-import { ALL_ITEMS, ITEM_CONFIG } from '../../domain/value-objects/Item';
+import { ALL_ITEMS, ITEM_CONFIG, MAX_TABLE_ITEMS } from '../../domain/value-objects/Item';
 import { GameDomainEvent } from '../dtos/GameEvents';
 
 export interface PlaceBetInput {
@@ -59,7 +62,11 @@ export class PlaceBetUseCase {
       case 'FOLD': {
         currentPlayer.folded = true;
         currentPlayer.hasActedThisRound = true;
-        appendRoomLog(room, `${currentPlayer.displayName} bỏ bài (Fold).`);
+        addVia(currentPlayer, VIA_GAIN_ON_FOLD);
+        appendRoomLog(
+          room,
+          `${currentPlayer.displayName} bỏ bài (Fold, +${VIA_GAIN_ON_FOLD} vía).`
+        );
         break;
       }
       case 'CHECK': {
@@ -84,12 +91,20 @@ export class PlaceBetUseCase {
         break;
       }
       case 'RAISE': {
-        const desiredRaiseBy = input.raiseAmount ?? room.minRaise;
+        if (
+          input.raiseAmount !== undefined &&
+          (typeof input.raiseAmount !== 'number' ||
+            !Number.isFinite(input.raiseAmount) ||
+            input.raiseAmount <= 0)
+        ) {
+          throw new Error('Invalid raise amount.');
+        }
+        const desiredRaiseBy = Math.floor(input.raiseAmount ?? room.minRaise);
         const minTotalBet = room.currentBet + room.minRaise;
         const targetTotalBet = Math.max(minTotalBet, room.currentBet + desiredRaiseBy);
         const needed = targetTotalBet - currentPlayer.currentBet;
 
-        if (needed <= 0) {
+        if (!Number.isFinite(needed) || needed <= 0) {
           throw new Error('Invalid raise amount.');
         }
 
@@ -97,10 +112,15 @@ export class PlaceBetUseCase {
         const previousRoomBet = room.currentBet;
         this.commitChips(room, currentPlayer, contribution);
 
+        let earnedRaiseVia = false;
         if (currentPlayer.currentBet > previousRoomBet) {
           const raiseDelta = currentPlayer.currentBet - previousRoomBet;
           room.minRaise = Math.max(room.minRaise, raiseDelta);
           room.currentBet = currentPlayer.currentBet;
+          if (raiseDelta >= room.smallBlind) {
+            addVia(currentPlayer, VIA_GAIN_ON_RAISE);
+            earnedRaiseVia = true;
+          }
           // Everyone else must act again
           for (const p of room.players) {
             if (p.accountId !== currentPlayer.accountId && !p.folded && !p.allIn && !p.eliminated) {
@@ -114,7 +134,7 @@ export class PlaceBetUseCase {
         }
         appendRoomLog(
           room,
-          `${currentPlayer.displayName} tố lên ${currentPlayer.currentBet}${currentPlayer.allIn ? ' (All-In!)' : ''}.`
+          `${currentPlayer.displayName} tố lên ${currentPlayer.currentBet}${currentPlayer.allIn ? ' (All-In!)' : ''}${earnedRaiseVia ? ` (+${VIA_GAIN_ON_RAISE} vía)` : ''}.`
         );
         break;
       }
@@ -124,10 +144,15 @@ export class PlaceBetUseCase {
         this.commitChips(room, currentPlayer, contribution);
         this.snapshotAllInProbability(currentPlayer, room);
 
+        let earnedRaiseVia = false;
         if (currentPlayer.currentBet > previousRoomBet) {
           const raiseDelta = currentPlayer.currentBet - previousRoomBet;
           if (raiseDelta >= room.minRaise) {
             room.minRaise = raiseDelta;
+          }
+          if (raiseDelta >= room.smallBlind) {
+            addVia(currentPlayer, VIA_GAIN_ON_RAISE);
+            earnedRaiseVia = true;
           }
           room.currentBet = currentPlayer.currentBet;
           for (const p of room.players) {
@@ -139,9 +164,12 @@ export class PlaceBetUseCase {
         currentPlayer.hasActedThisRound = true;
         appendRoomLog(
           room,
-          `🔥 ${currentPlayer.displayName} TẤT TAY (All-In ${contribution} chip)!`
+          `${currentPlayer.displayName} tất tay (All-In ${contribution} chip)${earnedRaiseVia ? ` (+${VIA_GAIN_ON_RAISE} vía)` : ''}.`
         );
         break;
+      }
+      default: {
+        throw new Error('Invalid bet action.');
       }
     }
 
@@ -376,13 +404,15 @@ export class PlaceBetUseCase {
     for (const player of room.players) {
       const won = winnerIds.has(player.accountId);
 
-      // Track consecutive win streak for every player
+      // Track consecutive win streak, Instant Noodles consumption, and 3-win item drops for ALL players (humans & bots!)
+      let extraBonusChips = 0;
       if (won) {
         player.winStreak += 1;
+        player.matchWins += 1;
+
         if (player.winStreak % 3 === 0) {
-          const chipBonus = Math.floor(player.chips * 0.5);
-          const viaBonus = 30;
-          player.chips += chipBonus;
+          const chipBonus = 0;
+          const viaBonus = VIA_GAIN_ON_WIN_STREAK;
           addVia(player, viaBonus);
           events.push({
             type: 'WIN_STREAK_BONUS',
@@ -395,8 +425,68 @@ export class PlaceBetUseCase {
           });
           appendRoomLog(
             room,
-            `🔥 CHUỖI ${player.winStreak} THẮNG LIÊN TIẾP! ${player.displayName} nhận thưởng +${chipBonus.toLocaleString()} chip (+50%) & +${viaBonus} Vía!`
+            `Chuỗi ${player.winStreak} thắng liên tiếp: ${player.displayName} nhận thưởng +${viaBonus} vía.`
           );
+        }
+
+        // Instant Noodles: eat 1 bite per win (3 bites total -> bowl disappears, max Vía returns to 100)
+        if (
+          player.ownedItems.includes('INSTANT_NOODLES') &&
+          player.itemsState.noodleBitesLeft > 0
+        ) {
+          player.itemsState.noodleBitesLeft -= 1;
+          if (player.itemsState.noodleBitesLeft <= 0) {
+            player.ownedItems = player.ownedItems.filter((it) => it !== 'INSTANT_NOODLES');
+            player.via = Math.min(player.via, 100);
+            appendRoomLog(
+              room,
+              `${player.displayName} đã ăn hết Bát Mì Tôm (vía tối đa trở về 100).`
+            );
+          } else {
+            appendRoomLog(
+              room,
+              `${player.displayName} ăn 1 miếng Mì Tôm (còn ${player.itemsState.noodleBitesLeft}/3 miếng).`
+            );
+          }
+        }
+
+        // Every 3 wins in THIS match -> gift 1 random unowned item (max 3 items on table at once!)
+        if (player.matchWins % 3 === 0) {
+          const unowned = ALL_ITEMS.filter((item) => !player.ownedItems.includes(item));
+          if (player.ownedItems.length < MAX_TABLE_ITEMS && unowned.length > 0) {
+            const gifted = unowned[crypto.randomInt(0, unowned.length)];
+            player.ownedItems.push(gifted);
+            if (gifted === 'INSTANT_NOODLES') {
+              player.itemsState.noodleBitesLeft = ITEM_CONFIG.INSTANT_NOODLES.maxBites;
+            } else if (gifted === 'INCENSE_BOWL') {
+              player.itemsState.incenseSticks = ITEM_CONFIG.INCENSE_BOWL.initialSticks;
+              player.itemsState.incenseHandsIdle = 0;
+            } else if (gifted === 'ICED_TEA') {
+              player.itemsState.icedTeaSipsLeft = ITEM_CONFIG.ICED_TEA.maxSipsPerMatch;
+              player.itemsState.icedTeaUsedThisRound = false;
+            } else if (gifted === 'LUCKY_MANGO') {
+              player.itemsState.luckyMangoUsesLeft = ITEM_CONFIG.LUCKY_MANGO.maxUsesPerMatch;
+            }
+            events.push({
+              type: 'ITEM_UNLOCKED',
+              roomId: room.id,
+              accountId: player.accountId,
+              displayName: player.displayName,
+              item: gifted,
+              totalWins: player.matchWins,
+            });
+            appendRoomLog(
+              room,
+              `${player.displayName} thắng ${player.matchWins} ván, nhận đồ vật mới (${player.ownedItems.length}/${MAX_TABLE_ITEMS}).`
+            );
+          } else {
+            extraBonusChips = 500;
+            player.chips += extraBonusChips;
+            appendRoomLog(
+              room,
+              `${player.displayName} đã đủ ${MAX_TABLE_ITEMS}/${MAX_TABLE_ITEMS} đồ vật trên bàn — thưởng +500 chip.`
+            );
+          }
         }
       } else {
         player.winStreak = 0;
@@ -411,61 +501,32 @@ export class PlaceBetUseCase {
       player.lastSyncedChips = player.chips;
       if (won) {
         account.stats.wins += 1;
-        player.matchWins += 1;
+      }
 
-        // Instant Noodles: eat 1 bite per win (3 bites total -> bowl disappears, max Vía returns to 100)
-        if (
-          player.ownedItems.includes('INSTANT_NOODLES') &&
-          player.itemsState.noodleBitesLeft > 0
-        ) {
-          player.itemsState.noodleBitesLeft -= 1;
-          if (player.itemsState.noodleBitesLeft <= 0) {
-            player.ownedItems = player.ownedItems.filter((it) => it !== 'INSTANT_NOODLES');
-            player.via = Math.min(player.via, 100);
-            appendRoomLog(
-              room,
-              `🍜 ${player.displayName} đã ăn hết Bát Mì Tôm (Max Vía trở về 100)!`
-            );
-          } else {
-            appendRoomLog(
-              room,
-              `🍜 ${player.displayName} húp 1 miếng Mì Tôm mừng chiến thắng (còn ${player.itemsState.noodleBitesLeft}/3 miếng)!`
-            );
-          }
-        }
-
-        // Every 3 wins in THIS match -> gift 1 random unowned item for this match!
-        if (player.matchWins % 3 === 0) {
-          const unowned = ALL_ITEMS.filter((item) => !player.ownedItems.includes(item));
-          if (unowned.length > 0) {
-            const gifted = unowned[crypto.randomInt(0, unowned.length)];
-            player.ownedItems.push(gifted);
-            if (gifted === 'INSTANT_NOODLES') {
-              player.itemsState.noodleBitesLeft = ITEM_CONFIG.INSTANT_NOODLES.maxBites;
-            }
-            events.push({
-              type: 'ITEM_UNLOCKED',
-              roomId: room.id,
-              accountId: player.accountId,
-              displayName: player.displayName,
-              item: gifted,
-              totalWins: player.matchWins,
-            });
-            appendRoomLog(
-              room,
-              `🎁 ${player.displayName} thắng ${player.matchWins} ván trong bàn — được tặng ${gifted}!`
-            );
-          } else {
-            player.chips += 500;
-            player.lastSyncedChips = player.chips;
-            account.chips += 500;
-            appendRoomLog(
-              room,
-              `🎁 ${player.displayName} đạt mốc ${player.matchWins} thắng — thưởng +500 chip!`
-            );
-          }
+      // Real PvP Arena Mode: every time net chips gained in this room reaches a new multiple of entry buy-in -> +1x 500K VND bill!
+      const humanCount = room.players.filter((p) => !p.isBot).length;
+      if (room.mode === 'ARENA' && humanCount >= 2 && player.arenaBuyIn > 0) {
+        const netWonInRoom = Math.max(0, player.chips - player.arenaBuyIn);
+        const totalDeserved = Math.floor(netWonInRoom / player.arenaBuyIn);
+        if (totalDeserved > player.arenaBillsEarned) {
+          const newlyEarned = totalDeserved - player.arenaBillsEarned;
+          player.arenaBillsEarned = totalDeserved;
+          account.vnd500kBills = (account.vnd500kBills ?? 0) + newlyEarned;
+          events.push({
+            type: 'ARENA_BILL_EARNED',
+            roomId: room.id,
+            accountId: player.accountId,
+            displayName: player.displayName,
+            billsEarned: newlyEarned,
+            totalBillsInMatch: player.arenaBillsEarned,
+          });
+          appendRoomLog(
+            room,
+            `${player.displayName} lãi đủ ${totalDeserved}x mức mang vào bàn — nhận +${newlyEarned} tờ 500.000 VNĐ!`
+          );
         }
       }
+
       await this.accountRepo.update(account);
     }
   }

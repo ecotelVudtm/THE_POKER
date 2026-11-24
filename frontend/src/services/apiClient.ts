@@ -1,12 +1,49 @@
-import { Account, SkillType, SkinId, WinEffectId } from '../types/game';
+import { Account, LoanPackage, SkillType, SkinId, WinEffectId } from '../types/game';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const AUTH_TOKEN_STORAGE_KEY = 'the_poker_auth_token';
+
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string): void {
+  try {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  } catch {
+    // ignore storage quota issues
+  }
+}
+
+export function clearAuthToken(): void {
+  try {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function authHeaders(withJson = false): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (withJson) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const token = getAuthToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 export async function registerAccountApi(
   username: string,
   password: string,
   displayName?: string
-): Promise<Account> {
+): Promise<{ account: Account; token: string }> {
   const res = await fetch(`${API_BASE}/api/accounts/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -16,13 +53,16 @@ export async function registerAccountApi(
   if (!res.ok) {
     throw new Error(data.error || 'Không thể đăng ký tài khoản.');
   }
-  return data.account as Account;
+  if (typeof data.token === 'string') {
+    setAuthToken(data.token);
+  }
+  return { account: data.account as Account, token: data.token as string };
 }
 
 export async function loginAccountApi(
   username: string,
   password: string
-): Promise<Account> {
+): Promise<{ account: Account; token: string }> {
   const res = await fetch(`${API_BASE}/api/accounts/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -32,11 +72,16 @@ export async function loginAccountApi(
   if (!res.ok) {
     throw new Error(data.error || 'Sai tên đăng nhập hoặc mật khẩu.');
   }
-  return data.account as Account;
+  if (typeof data.token === 'string') {
+    setAuthToken(data.token);
+  }
+  return { account: data.account as Account, token: data.token as string };
 }
 
 export async function fetchAccountByIdApi(id: string): Promise<Account> {
-  const res = await fetch(`${API_BASE}/api/accounts/${id}`);
+  const res = await fetch(`${API_BASE}/api/accounts/${id}`, {
+    headers: authHeaders(false),
+  });
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || 'Không tìm thấy tài khoản.');
@@ -44,9 +89,26 @@ export async function fetchAccountByIdApi(id: string): Promise<Account> {
   return data.account as Account;
 }
 
+export async function takeAccountLoanApi(
+  id: string,
+  packageType: LoanPackage
+): Promise<Account> {
+  const res = await fetch(`${API_BASE}/api/accounts/${id}/take-loan`, {
+    method: 'POST',
+    headers: authHeaders(true),
+    body: JSON.stringify({ packageType }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Không thể vay thêm chip.');
+  }
+  return data.account as Account;
+}
+
 export async function repayAccountLoanApi(id: string): Promise<Account> {
   const res = await fetch(`${API_BASE}/api/accounts/${id}/repay-loan`, {
     method: 'POST',
+    headers: authHeaders(false),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -62,7 +124,7 @@ export async function buySkillApi(
 ): Promise<Account> {
   const res = await fetch(`${API_BASE}/api/accounts/${id}/shop/buy-skill`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({ skillType, quantity }),
   });
   const data = await res.json();
@@ -78,7 +140,7 @@ export async function updateLoadoutApi(
 ): Promise<Account> {
   const res = await fetch(`${API_BASE}/api/accounts/${id}/loadout`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({ equippedSkills }),
   });
   const data = await res.json();
@@ -91,7 +153,7 @@ export async function updateLoadoutApi(
 export async function buySkinApi(id: string, skinId: SkinId): Promise<Account> {
   const res = await fetch(`${API_BASE}/api/accounts/${id}/shop/buy-skin`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({ skinId }),
   });
   const data = await res.json();
@@ -104,7 +166,7 @@ export async function buySkinApi(id: string, skinId: SkinId): Promise<Account> {
 export async function equipSkinApi(id: string, skinId: SkinId): Promise<Account> {
   const res = await fetch(`${API_BASE}/api/accounts/${id}/shop/equip-skin`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({ skinId }),
   });
   const data = await res.json();
@@ -117,7 +179,7 @@ export async function equipSkinApi(id: string, skinId: SkinId): Promise<Account>
 export async function buyWinEffectApi(id: string, effectId: WinEffectId): Promise<Account> {
   const res = await fetch(`${API_BASE}/api/accounts/${id}/shop/buy-win-effect`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({ effectId }),
   });
   const data = await res.json();
@@ -130,7 +192,7 @@ export async function buyWinEffectApi(id: string, effectId: WinEffectId): Promis
 export async function equipWinEffectApi(id: string, effectId: WinEffectId): Promise<Account> {
   const res = await fetch(`${API_BASE}/api/accounts/${id}/shop/equip-win-effect`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({ effectId }),
   });
   const data = await res.json();

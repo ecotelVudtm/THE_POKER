@@ -16,6 +16,8 @@ import { connectDatabase } from './infrastructure/database/mongooseConnection';
 import { InMemoryAccountRepository } from './infrastructure/repositories/InMemoryAccountRepository';
 import { InMemoryRoomRepository } from './infrastructure/repositories/InMemoryRoomRepository';
 import { MongoAccountRepository } from './infrastructure/repositories/MongoAccountRepository';
+import { RateLimiter } from './infrastructure/security/RateLimiter';
+import { TokenService } from './infrastructure/security/TokenService';
 import { MatchTimerLoop } from './infrastructure/timer/MatchTimerLoop';
 import { createExpressApp } from './presentation/http/app';
 import { AccountController } from './presentation/http/controllers/AccountController';
@@ -48,8 +50,18 @@ async function bootstrap(): Promise<void> {
   const takeLoanUseCase = new TakeLoanUseCase(roomRepo, accountRepo);
   const repayLoanUseCase = new RepayLoanUseCase(roomRepo, accountRepo);
 
+  // Infrastructure Security Services
+  const tokenService = new TokenService(process.env.AUTH_SECRET);
+  const rateLimiter = new RateLimiter();
+
   // Presentation HTTP
-  const accountController = new AccountController(authUseCase, accountRepo);
+  const accountController = new AccountController(
+    authUseCase,
+    accountRepo,
+    roomRepo,
+    tokenService,
+    rateLimiter
+  );
   const roomController = new RoomController(roomRepo);
   const app = createExpressApp({
     accountController,
@@ -62,8 +74,10 @@ async function bootstrap(): Promise<void> {
 
   // Presentation Socket.IO
   const socketGateway = new SocketGateway(httpServer, {
+    accountRepo,
     roomRepo,
-    authUseCase,
+    tokenService,
+    rateLimiter,
     joinRoomUseCase,
     startMatchUseCase,
     placeBetUseCase,

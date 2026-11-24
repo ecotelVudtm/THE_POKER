@@ -10,6 +10,7 @@ export interface AccountDocument extends Document {
   displayName: string;
   passwordHash?: string;
   chips: number;
+  vnd500kBills: number;
   loanBalance: number;
   ownedItems: ItemType[];
   skillInventory: SkillInventory;
@@ -76,6 +77,11 @@ const AccountSchema = new Schema<AccountDocument>(
     chips: {
       type: Number,
       default: 10000,
+      min: 0,
+    },
+    vnd500kBills: {
+      type: Number,
+      default: 0,
       min: 0,
     },
     loanBalance: {

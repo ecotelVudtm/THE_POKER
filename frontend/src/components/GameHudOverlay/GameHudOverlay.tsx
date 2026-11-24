@@ -64,7 +64,7 @@ export function GameHudOverlay({
   muted,
   toasts,
   onToggleMute,
-  onOpenPhone,
+  onOpenPhone: _onOpenPhone,
   onStartMatch,
   onLeaveRoom,
   onPlaceBet,
@@ -96,10 +96,10 @@ export function GameHudOverlay({
   };
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-3">
-      {/* SQUARE VOXEL TOP STRIP */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="voxel-panel pointer-events-auto flex items-center gap-3 px-3 py-1.5 font-mono text-xs">
+    <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between p-4">
+      {/* CRAFTED SQUARE VOXEL TOP STRIP */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="voxel-panel-gold pointer-events-auto flex items-center gap-3.5 px-4 py-2 font-mono text-xs">
           <button
             type="button"
             onClick={copyRoomCode}
@@ -109,27 +109,41 @@ export function GameHudOverlay({
             {copiedRoom ? 'ĐÃ CHÉP' : `#${room.id}`}
           </button>
           <span className="text-border-subtle">|</span>
-          <span className="font-bold text-content-primary">
+          <span className="font-extrabold text-content-primary">
             {PHASE_LABELS[room.phase]} · VÁN {room.handNumber}
           </span>
           <span className="text-border-subtle">|</span>
-          <span className="text-content-secondary">
+          <span className="font-bold text-content-secondary">
             BLIND {room.smallBlind.toLocaleString()}/{room.bigBlind.toLocaleString()}
           </span>
           <span className="text-border-subtle">|</span>
-          <span className="flex items-center gap-1.5 font-extrabold text-accent-gold">
-            <VoxelIcon3D kind="chip" size={16} />
+          <span className="flex items-center gap-1.5 text-sm font-extrabold text-accent-gold">
+            <VoxelIcon3D kind="chip" size={18} />
             POT {room.pot.toLocaleString()}
           </span>
+          {room.mode === 'ARENA' && me && (
+            <>
+              <span className="text-border-subtle">|</span>
+              <span
+                className="flex items-center gap-1.5 font-mono text-xs font-extrabold text-accent-via"
+                title={`Đấu Trường Thật: mỗi lần lãi đủ +${me.arenaBuyIn.toLocaleString()} chip nhận +1 tờ 500.000 VNĐ`}
+              >
+                <VoxelIcon3D kind="vnd500k" size={18} />
+                ĐẤU TRƯỜNG · 500K x{me.arenaBillsEarned} (
+                {Math.max(0, me.chips - me.arenaBuyIn).toLocaleString()}/
+                {((me.arenaBillsEarned + 1) * Math.max(1, me.arenaBuyIn)).toLocaleString()})
+              </span>
+            </>
+          )}
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-1.5">
+        <div className="pointer-events-auto flex items-center gap-2">
           {(room.status === 'WAITING' || room.status === 'FINISHED') && isHost && (
             <button
               type="button"
               disabled={room.players.length < 2}
               onClick={onStartMatch}
-              className="voxel-btn border-2 border-border-gold bg-accent-gold px-4 py-1.5 font-mono text-xs font-extrabold tracking-wider text-content-inverse disabled:opacity-40"
+              className="voxel-btn border-2 border-border-gold bg-accent-gold px-5 py-2 font-mono text-xs font-extrabold tracking-widest text-content-inverse disabled:opacity-40"
             >
               {room.status === 'FINISHED'
                 ? 'CHƠI TRẬN MỚI'
@@ -137,24 +151,10 @@ export function GameHudOverlay({
             </button>
           )}
 
-          {me && me.ownedItems.includes('PHONE') && (
-            <button
-              type="button"
-              onClick={onOpenPhone}
-              className={`voxel-btn border-2 px-2.5 py-1.5 font-mono text-[11px] font-bold ${
-                me.activeLoan
-                  ? 'border-status-warning bg-status-warning/25 text-status-warning'
-                  : 'border-border-subtle bg-surface-canvas/90 text-content-secondary hover:border-border-gold hover:text-accent-gold'
-              }`}
-            >
-              {me.activeLoan ? `NỢ ${me.activeLoan.currentOwed.toLocaleString()}` : 'ĐIỆN THOẠI'}
-            </button>
-          )}
-
           <button
             type="button"
             onClick={onToggleMute}
-            className="voxel-btn border-2 border-border-subtle bg-surface-canvas/90 px-2.5 py-1.5 font-mono text-[11px] font-bold text-content-secondary hover:border-border-gold hover:text-accent-gold"
+            className="voxel-btn border-2 border-border-subtle bg-surface-panel px-3 py-2 font-mono text-xs font-extrabold text-content-secondary hover:border-border-gold hover:text-accent-gold"
           >
             {muted ? 'ÂM: TẮT' : 'ÂM: BẬT'}
           </button>
@@ -162,23 +162,23 @@ export function GameHudOverlay({
           <button
             type="button"
             onClick={onLeaveRoom}
-            className="voxel-btn border-2 border-status-danger/60 bg-surface-canvas/90 px-2.5 py-1.5 font-mono text-[11px] font-bold text-status-danger hover:bg-status-danger hover:text-content-primary"
+            className="voxel-btn border-2 border-status-danger/70 bg-surface-panel px-3 py-2 font-mono text-xs font-extrabold text-status-danger hover:bg-status-danger hover:text-content-primary"
           >
             RỜI BÀN
           </button>
         </div>
       </div>
 
-      {/* MIDDLE: Minimal Log Feed (Showdown winner banner now rises in 3D from table center) */}
-      <div className="my-auto flex items-start justify-between">
+      {/* LOWER-LEFT SUBTLE EVENT / CHAT FEED (positioned low, right above the board cards & clock!) */}
+      <div className="mt-auto mb-2.5 flex items-end justify-between">
         <EventToastFeed toasts={toasts} />
       </div>
 
-      {/* BOTTOM SQUARE VOXEL DOCK */}
+      {/* BOTTOM CRAFTED VOXEL DOCK */}
       {me && (
-        <div className="grid items-end gap-2 lg:grid-cols-12">
-          <div className="flex flex-col gap-2 lg:col-span-3">
-            {/* Crisp 5-slot Community Cards Strip right above the Clock so suits & ranks are never misread */}
+        <div className="grid items-end gap-3 lg:grid-cols-12">
+          <div className="flex flex-col gap-2.5 lg:col-span-3">
+            {/* Larger, Ultra-Clear 5-slot Community Cards Strip right above the Clock */}
             <div className="pointer-events-auto flex flex-col gap-1">
               <span className="font-mono text-[10px] font-extrabold tracking-widest text-content-secondary">
                 BÀI TRÊN BÀN ({room.communityCards.length}/5)
@@ -190,7 +190,7 @@ export function GameHudOverlay({
                     return (
                       <div
                         key={slotIdx}
-                        className="flex h-12 w-9 items-center justify-center border-2 border-border-subtle bg-surface-canvas/75 font-mono text-xs font-bold text-content-muted/50"
+                        className="flex h-14 w-10 items-center justify-center border-2 border-border-subtle bg-surface-canvas/80 font-mono text-sm font-bold text-content-muted/45"
                       >
                         ?
                       </div>
@@ -200,17 +200,17 @@ export function GameHudOverlay({
                   return (
                     <div
                       key={`${card.code}_${slotIdx}`}
-                      className="flex h-12 w-9 flex-col items-center justify-between border-2 border-border-gold bg-content-primary px-0.5 py-0.5 font-mono leading-none shadow-[2px_2px_0_rgba(0,0,0,0.8)]"
+                      className="flex h-14 w-10 flex-col items-center justify-between border-2 border-border-gold bg-content-primary px-1 py-0.5 font-mono leading-none shadow-[3px_3px_0_rgba(0,0,0,0.85)]"
                     >
                       <span
-                        className={`self-start text-[11px] font-extrabold ${
+                        className={`self-start text-xs font-extrabold ${
                           isRed ? 'text-status-danger' : 'text-content-inverse'
                         }`}
                       >
                         {formatRank(card.rank)}
                       </span>
                       <span
-                        className={`text-base leading-none ${
+                        className={`text-xl leading-none ${
                           isRed ? 'text-status-danger' : 'text-content-inverse'
                         }`}
                       >

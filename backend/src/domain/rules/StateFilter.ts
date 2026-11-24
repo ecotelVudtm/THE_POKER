@@ -1,6 +1,6 @@
 import { Card } from '../entities/Card';
 import { Player, PlayerStatusEffects } from '../entities/Player';
-import { GamePhase, HandWinner, Room, RoomLogEntry, RoomStatus, SidePot } from '../entities/Room';
+import { GamePhase, HandWinner, Room, RoomLogEntry, RoomMode, RoomStatus, SidePot } from '../entities/Room';
 import { ItemType, PlayerItemsState } from '../value-objects/Item';
 import { ActiveLoan } from '../value-objects/Loan';
 import { SkillMastery } from '../entities/Account';
@@ -26,6 +26,8 @@ export interface PublicPlayerView {
   turnRemainingSeconds: number;
   via: number;
   winStreak: number;
+  arenaBuyIn: number;
+  arenaBillsEarned: number;
   ownedItems: ItemType[];
   equippedSkills: SkillType[];
   equippedSkin: SkinId;
@@ -42,6 +44,7 @@ export interface FilteredRoomState {
   id: string;
   name: string;
   hostAccountId: string;
+  mode: RoomMode;
   status: RoomStatus;
   phase: GamePhase;
   maxBuyIn: number;
@@ -95,6 +98,8 @@ function filterPlayerForViewer(
     turnRemainingSeconds: player.turnRemainingSeconds,
     via: player.via,
     winStreak: player.winStreak,
+    arenaBuyIn: player.arenaBuyIn,
+    arenaBillsEarned: player.arenaBillsEarned,
     ownedItems: [...player.ownedItems],
     equippedSkills: [...player.equippedSkills],
     equippedSkin: player.equippedSkin,
@@ -125,6 +130,7 @@ export function filterRoomStateForViewer(
     id: room.id,
     name: room.name,
     hostAccountId: room.hostAccountId,
+    mode: room.mode,
     status: room.status,
     phase: room.phase,
     maxBuyIn: room.maxBuyIn,

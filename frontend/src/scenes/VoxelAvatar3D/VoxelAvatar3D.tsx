@@ -231,30 +231,57 @@ export function VoxelAvatar3D({
   });
 
   return (
-    <group ref={rootRef}>
+    <group ref={rootRef} scale={[1.12, 1.12, 1.12]}>
       {/* Torso */}
       <mesh castShadow position={[0, 0.52, 0]}>
         <boxGeometry args={[0.54, 0.62, 0.34]} />
-        <meshStandardMaterial color={shirtColor} roughness={0.7} />
+        <meshStandardMaterial color={shirtColor} roughness={0.68} />
+      </mesh>
+
+      {/* Crisp Shirt Collar & Pocket Square Details */}
+      <mesh position={[0, 0.8, 0.16]}>
+        <boxGeometry args={[0.22, 0.08, 0.06]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.5} />
+      </mesh>
+      <mesh position={[-0.16, 0.66, 0.176]}>
+        <boxGeometry args={[0.1, 0.04, 0.02]} />
+        <meshStandardMaterial color={skin.accentColor ?? '#f8fafc'} roughness={0.45} />
+      </mesh>
+
+      {/* Leather Belt + Brass Buckle around waist */}
+      <mesh position={[0, 0.25, 0]}>
+        <boxGeometry args={[0.56, 0.08, 0.36]} />
+        <meshStandardMaterial color="#271c15" roughness={0.75} />
+      </mesh>
+      <mesh position={[0, 0.25, 0.185]}>
+        <boxGeometry args={[0.12, 0.07, 0.03]} />
+        <meshStandardMaterial color="#eab308" metalness={0.75} roughness={0.3} />
       </mesh>
 
       {/* Optional Tie / Lapel Accent */}
       {skin.accentColor && (
-        <mesh position={[0, 0.58, 0.176]}>
-          <boxGeometry args={[0.1, 0.36, 0.02]} />
+        <mesh position={[0, 0.56, 0.178]}>
+          <boxGeometry args={[0.09, 0.38, 0.02]} />
           <meshStandardMaterial color={skin.accentColor} roughness={0.45} metalness={0.3} />
         </mesh>
       )}
 
-      {/* Left Arm (pivoted at shoulder y = 0.76) */}
+      {/* Left Arm (pivoted at shoulder y = 0.76) with distinct cuffed sleeve & hand */}
       <group ref={leftArmPivotRef} position={[-0.37, 0.76, 0.04]}>
-        <mesh castShadow position={[0, -0.24, 0]}>
-          <boxGeometry args={[0.18, 0.54, 0.22]} />
-          <meshStandardMaterial color={sleeveColor} roughness={0.7} />
+        <mesh castShadow position={[0, -0.2, 0]}>
+          <boxGeometry args={[0.18, 0.44, 0.22]} />
+          <meshStandardMaterial color={sleeveColor} roughness={0.68} />
+        </mesh>
+        <mesh castShadow position={[0, -0.47, 0]}>
+          <boxGeometry args={[0.17, 0.12, 0.21]} />
+          <meshStandardMaterial
+            color={skin.specialAnim === 'conjure_doves' ? '#f8fafc' : '#e5b88d'}
+            roughness={0.55}
+          />
         </mesh>
         {/* Golden Watch Block on Left Wrist for TYCOON_WATCH */}
         {skin.specialAnim === 'check_watch' && (
-          <group position={[0, -0.42, 0]}>
+          <group position={[0, -0.41, 0]}>
             <mesh>
               <boxGeometry args={[0.21, 0.07, 0.25]} />
               <meshStandardMaterial
@@ -275,27 +302,21 @@ export function VoxelAvatar3D({
             </mesh>
           </group>
         )}
-        {/* White Magician Glove */}
-        {skin.specialAnim === 'conjure_doves' && (
-          <mesh position={[0, -0.47, 0]}>
-            <boxGeometry args={[0.19, 0.12, 0.23]} />
-            <meshStandardMaterial color="#f8fafc" roughness={0.4} />
-          </mesh>
-        )}
       </group>
 
-      {/* Right Arm (pivoted at shoulder y = 0.76) */}
+      {/* Right Arm (pivoted at shoulder y = 0.76) with distinct cuffed sleeve & hand */}
       <group ref={rightArmPivotRef} position={[0.37, 0.76, 0.04]}>
-        <mesh castShadow position={[0, -0.24, 0]}>
-          <boxGeometry args={[0.18, 0.54, 0.22]} />
-          <meshStandardMaterial color={sleeveColor} roughness={0.7} />
+        <mesh castShadow position={[0, -0.2, 0]}>
+          <boxGeometry args={[0.18, 0.44, 0.22]} />
+          <meshStandardMaterial color={sleeveColor} roughness={0.68} />
         </mesh>
-        {skin.specialAnim === 'conjure_doves' && (
-          <mesh position={[0, -0.47, 0]}>
-            <boxGeometry args={[0.19, 0.12, 0.23]} />
-            <meshStandardMaterial color="#f8fafc" roughness={0.4} />
-          </mesh>
-        )}
+        <mesh castShadow position={[0, -0.47, 0]}>
+          <boxGeometry args={[0.17, 0.12, 0.21]} />
+          <meshStandardMaterial
+            color={skin.specialAnim === 'conjure_doves' ? '#f8fafc' : '#e5b88d'}
+            roughness={0.55}
+          />
+        </mesh>
       </group>
 
       {/* Head Group (pivoted at neck y = 0.84) */}
@@ -305,15 +326,28 @@ export function VoxelAvatar3D({
           <boxGeometry args={[0.48, 0.48, 0.48]} />
           <meshStandardMaterial color="#e5b88d" roughness={0.65} />
         </mesh>
+        {/* 3D Voxel Ears */}
+        <mesh position={[-0.255, 0.21, 0]}>
+          <boxGeometry args={[0.05, 0.12, 0.1]} />
+          <meshStandardMaterial color="#d9a77a" roughness={0.65} />
+        </mesh>
+        <mesh position={[0.255, 0.21, 0]}>
+          <boxGeometry args={[0.05, 0.12, 0.1]} />
+          <meshStandardMaterial color="#d9a77a" roughness={0.65} />
+        </mesh>
         {/* Crisp Pixel Face */}
         <mesh position={[0, 0.22, 0.242]}>
           <planeGeometry args={[0.48, 0.48]} />
           <meshStandardMaterial map={faceTex} roughness={0.65} />
         </mesh>
-        {/* Blocky Hair Cap */}
+        {/* Layered Blocky Hair Cap + Back Hair Volume */}
         <mesh position={[0, 0.47, 0]}>
-          <boxGeometry args={[0.52, 0.08, 0.52]} />
-          <meshStandardMaterial color={skin.hairColor} roughness={0.8} />
+          <boxGeometry args={[0.52, 0.09, 0.52]} />
+          <meshStandardMaterial color={skin.hairColor} roughness={0.78} />
+        </mesh>
+        <mesh position={[0, 0.28, -0.245]}>
+          <boxGeometry args={[0.5, 0.34, 0.05]} />
+          <meshStandardMaterial color={skin.hairColor} roughness={0.78} />
         </mesh>
 
         {/* Tier 1+ 3D Voxel Glasses / Shades */}

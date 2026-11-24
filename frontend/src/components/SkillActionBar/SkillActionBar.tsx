@@ -87,10 +87,10 @@ export function SkillActionBar({
       : null;
 
   return (
-    <div className="pointer-events-auto relative flex flex-col items-center gap-2">
+    <div className="pointer-events-none relative flex flex-col items-center gap-2">
       {/* Sub-picker popover for card slot (Sleight of Hand — unexposed cards only) */}
       {pickingSkill === 'SLEIGHT_OF_HAND' && (
-        <div className="voxel-panel-gold absolute bottom-full mb-3 flex items-center gap-2 px-3 py-2">
+        <div className="voxel-panel-gold pointer-events-auto absolute bottom-full mb-3 flex items-center gap-2 px-3 py-2">
           <span className="font-mono text-xs font-bold text-content-secondary">CHỌN LÁ TRÁO:</span>
           {([0, 1] as const).map((idx) => {
             const isExposed = me.exposedCardIndices.includes(idx);
@@ -115,7 +115,7 @@ export function SkillActionBar({
 
       {/* Sub-picker popover for target opponent (Pressure Aura & Via Siphon) */}
       {pickingTargetDef && (
-        <div className="voxel-panel-gold absolute bottom-full mb-3 flex flex-wrap items-center gap-1.5 px-3 py-2">
+        <div className="voxel-panel-gold pointer-events-auto absolute bottom-full mb-3 flex flex-wrap items-center gap-1.5 px-3 py-2">
           <span className="font-mono text-xs font-bold text-content-secondary">
             {pickingTargetDef.targetLabel ?? 'CHỌN MỤC TIÊU:'}
           </span>
@@ -136,9 +136,9 @@ export function SkillActionBar({
         </div>
       )}
 
-      {/* Up to 3 Equipped Upright Magic Spell Cards tucked slightly behind the raised Vía bar */}
+      {/* Up to 3 Large Detailed Upright Magic Spell Cards tucked behind the raised Vía bar */}
       {spellCards.length > 0 ? (
-        <div className="relative z-10 -mb-5 flex items-end justify-center gap-2.5">
+        <div className="pointer-events-auto relative z-10 -mb-5 flex items-end justify-center gap-3">
           {spellCards.map((card) => {
             const isSelected = pickingSkill === card.type;
             return (
@@ -148,14 +148,18 @@ export function SkillActionBar({
                 disabled={card.disabled}
                 onClick={() => handleSkillClick(card.type)}
                 title={`${card.fullName} — ${card.shortDesc}`}
-                className={`group relative flex h-[136px] w-[104px] flex-col justify-between border-2 p-2 text-center shadow-[4px_4px_0_rgba(0,0,0,0.8)] transition-all duration-150 ${
+                className={`group relative flex h-[150px] w-[114px] flex-col justify-between border-2 p-2.5 text-center shadow-[5px_5px_0_rgba(0,0,0,0.85)] transition-all duration-150 ${
                   card.borderCls
                 } ${card.tiltCls} ${
                   isSelected
-                    ? 'z-30 -translate-y-7 rotate-0 scale-105'
-                    : 'z-10 hover:z-30 hover:-translate-y-7 hover:rotate-0 hover:scale-105'
+                    ? 'z-30 -translate-y-8 rotate-0 scale-105'
+                    : 'z-10 hover:z-30 hover:-translate-y-8 hover:rotate-0 hover:scale-105'
                 } disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:z-10 disabled:hover:translate-y-0 disabled:hover:scale-100`}
               >
+                {/* 4 Corner Pixel Studs */}
+                <span className="pointer-events-none absolute left-1 top-1 h-1 w-1 bg-accent-gold/75" />
+                <span className="pointer-events-none absolute right-1 top-1 h-1 w-1 bg-accent-gold/75" />
+
                 {/* Top Row: Mastery Level & Vía Cost Crystal */}
                 <div className="flex w-full items-center justify-between font-mono text-[10px] font-extrabold leading-none">
                   <span className="text-content-muted">LV.{card.level}</span>
@@ -164,9 +168,9 @@ export function SkillActionBar({
 
                 {/* Center Ornate Inner Spell Art Frame with 3D Voxel Emblem */}
                 <div
-                  className={`my-1.5 flex flex-1 flex-col items-center justify-center border ${card.innerFrameCls}`}
+                  className={`my-1.5 flex flex-1 flex-col items-center justify-center border-2 ${card.innerFrameCls}`}
                 >
-                  <VoxelIcon3D kind={card.iconKind} size={26} />
+                  <VoxelIcon3D kind={card.iconKind} size={30} />
                   <span className="mt-1 font-mono text-[9px] font-bold tracking-widest text-content-muted">
                     {card.subtitle}
                   </span>
@@ -174,7 +178,7 @@ export function SkillActionBar({
 
                 {/* Bottom Spell Nameplate */}
                 <div
-                  className={`pb-1 font-display text-xs font-bold leading-tight tracking-wide ${card.titleCls}`}
+                  className={`pb-1 font-display text-xs font-extrabold leading-tight tracking-wide ${card.titleCls}`}
                 >
                   {card.title}
                 </div>
@@ -183,27 +187,31 @@ export function SkillActionBar({
           })}
         </div>
       ) : (
-        <div className="voxel-panel relative z-10 px-3 py-1 font-mono text-[10px] font-bold text-content-muted">
+        <div className="voxel-panel relative z-10 px-3 py-1.5 font-mono text-[10px] font-bold text-content-muted">
           KHÔNG MANG LÁ PHÉP (MUA &amp; TRANG BỊ Ở SẢNH)
         </div>
       )}
 
-      {/* Raised Vía Energy Bar sitting IN FRONT of the bottom edge of the Spell Cards */}
+      {/* Raised Chunky Vía Energy Bar sitting IN FRONT of the bottom edge of the Spell Cards */}
       {(() => {
         const hasNoodles =
           me.ownedItems.includes('INSTANT_NOODLES') && (me.itemsState.noodleBitesLeft ?? 0) > 0;
         const maxVia = hasNoodles ? 120 : 100;
         return (
-          <div className="voxel-panel-gold relative z-20 flex w-full max-w-[344px] items-center gap-2.5 px-3 py-1.5">
-            <VoxelIcon3D kind="via" size={16} />
-            <span className="font-mono text-[11px] font-extrabold tracking-wider text-accent-via">
+          <div className="voxel-panel-gold pointer-events-auto relative z-20 flex w-full max-w-[376px] items-center gap-3 px-3.5 py-2">
+            <VoxelIcon3D kind="via" size={18} />
+            <span className="font-mono text-xs font-extrabold tracking-wider text-accent-via">
               VÍA {me.via}/{maxVia}
             </span>
-            <div className="h-2.5 flex-1 border border-border-subtle bg-surface-elevated">
+            <div className="relative h-3 flex-1 border-2 border-border-subtle bg-surface-elevated">
               <div
                 className="h-full bg-accent-via transition-all duration-300"
                 style={{ width: `${Math.min(100, (me.via / maxVia) * 100)}%` }}
               />
+              {/* Crisp pixel gauge ticks every 25% */}
+              <span className="pointer-events-none absolute inset-y-0 left-1/4 w-[1px] bg-surface-canvas/55" />
+              <span className="pointer-events-none absolute inset-y-0 left-1/2 w-[1px] bg-surface-canvas/55" />
+              <span className="pointer-events-none absolute inset-y-0 left-3/4 w-[1px] bg-surface-canvas/55" />
             </div>
           </div>
         );

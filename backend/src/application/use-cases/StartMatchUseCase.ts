@@ -55,7 +55,7 @@ export class StartMatchUseCase {
         player.folded = false;
         player.matchWins = 0;
         player.winStreak = 0;
-        player.ownedItems = player.isBot ? ['ICED_TEA', 'INCENSE_BOWL'] : [];
+        player.ownedItems = [];
         player.skillMastery = createDefaultSkillMastery();
         player.itemsState = createInitialItemsState();
 

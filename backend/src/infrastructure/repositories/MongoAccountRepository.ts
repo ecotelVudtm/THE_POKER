@@ -19,6 +19,7 @@ export class MongoAccountRepository implements IAccountRepository {
       displayName: doc.displayName,
       passwordHash: doc.passwordHash,
       chips: doc.chips,
+      vnd500kBills: doc.vnd500kBills ?? 0,
       loanBalance: doc.loanBalance ?? 0,
       ownedItems: Array.isArray(doc.ownedItems) ? [...doc.ownedItems] : [],
       skillInventory: normalizeSkillInventory(doc.skillInventory),
@@ -75,6 +76,7 @@ export class MongoAccountRepository implements IAccountRepository {
       {
         displayName: account.displayName,
         chips: account.chips,
+        vnd500kBills: account.vnd500kBills,
         loanBalance: account.loanBalance,
         ownedItems: account.ownedItems,
         skillInventory: account.skillInventory,

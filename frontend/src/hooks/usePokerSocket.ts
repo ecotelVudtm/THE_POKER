@@ -3,12 +3,15 @@ import {
   buySkillApi,
   buySkinApi,
   buyWinEffectApi,
+  clearAuthToken,
   equipSkinApi,
   equipWinEffectApi,
   fetchAccountByIdApi,
+  getAuthToken,
   loginAccountApi,
   registerAccountApi,
   repayAccountLoanApi,
+  takeAccountLoanApi,
   updateLoadoutApi,
 } from '../services/apiClient';
 import { getSocket } from '../services/socketClient';
@@ -24,6 +27,7 @@ import {
   MiniGameChallenge,
   MiniGameResultEvent,
   MiniGameSubmissionPayload,
+  RoomMode,
   SkillType,
   SkinId,
   WinEffectId,
@@ -63,23 +67,22 @@ export function usePokerSocket() {
   const lastTurnAccountRef = useRef<string | null>(null);
   const lastShowdownHandRef = useRef<number>(0);
 
-  // Restore saved session on load if still valid on server
+  // Restore saved session on load if still valid on server (requires valid signed token)
   useEffect(() => {
     const savedId = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!savedId || useGameStore.getState().account) return;
+    const savedToken = getAuthToken();
+    if (!savedId || !savedToken || useGameStore.getState().account) return;
     void fetchAccountByIdApi(savedId)
       .then((acc) => {
         setAccount(acc);
         const socket = getSocket();
         if (socket.connected) {
-          socket.emit('authenticate', {
-            username: acc.username,
-            displayName: acc.displayName,
-          });
+          socket.emit('authenticate', { token: savedToken });
         }
       })
       .catch(() => {
         localStorage.removeItem(SESSION_STORAGE_KEY);
+        clearAuthToken();
       });
   }, [setAccount]);
 
@@ -91,12 +94,9 @@ export function usePokerSocket() {
 
     const onConnect = () => {
       setConnected(true);
-      const currentAcc = useGameStore.getState().account;
-      if (currentAcc) {
-        socket.emit('authenticate', {
-          username: currentAcc.username,
-          displayName: currentAcc.displayName,
-        });
+      const token = getAuthToken();
+      if (token && useGameStore.getState().account) {
+        socket.emit('authenticate', { token });
       }
     };
 
@@ -106,6 +106,14 @@ export function usePokerSocket() {
 
     const onAuthenticated = (payload: { account: Account }) => {
       setAccount(payload.account);
+    };
+
+    const onAuthError = (payload: { message: string }) => {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      clearAuthToken();
+      resetMatchState();
+      setAccount(null);
+      pushToast(payload?.message || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'danger');
     };
 
     const onRoomStateUpdate = (nextRoom: FilteredRoomState) => {
@@ -263,11 +271,30 @@ export function usePokerSocket() {
       const meAcc = useGameStore.getState().account;
       if (meAcc && payload.accountId === meAcc.id) {
         soundEngine.playLevelUp();
-        soundEngine.playChipClink();
       }
       pushToast(
-        `CHUỖI ${payload.streak} THẮNG LIÊN TIẾP! ${payload.displayName} +${payload.chipBonus.toLocaleString()} CHIP & +${payload.viaBonus} VÍA!`,
-        'success'
+        `Chuỗi ${payload.streak} thắng liên tiếp: ${payload.displayName} nhận +${payload.viaBonus} vía.`,
+        'info'
+      );
+    };
+
+    const onArenaBillEarned = (payload: {
+      accountId: string;
+      displayName: string;
+      billsEarned: number;
+      totalBillsInMatch: number;
+    }) => {
+      const meAcc = useGameStore.getState().account;
+      if (meAcc && payload.accountId === meAcc.id) {
+        soundEngine.playPurchaseCash();
+        soundEngine.playLevelUp();
+        void fetchAccountByIdApi(meAcc.id)
+          .then((fresh) => setAccount(fresh))
+          .catch(() => { });
+      }
+      pushToast(
+        `${payload.displayName} nhận thêm +${payload.billsEarned} tờ 500.000 VNĐ trong Đấu Trường Thật.`,
+        'info'
       );
     };
 
@@ -278,6 +305,7 @@ export function usePokerSocket() {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('authenticated', onAuthenticated);
+    socket.on('auth_error', onAuthError);
     socket.on('room_state_update', onRoomStateUpdate);
     socket.on('minigame_challenge', onMiniGameChallenge);
     socket.on('minigame_result', onMiniGameResult);
@@ -286,6 +314,7 @@ export function usePokerSocket() {
     socket.on('lucky_coin_triggered', onLuckyCoin);
     socket.on('item_unlocked', onItemUnlocked);
     socket.on('win_streak_bonus', onWinStreakBonus);
+    socket.on('arena_bill_earned', onArenaBillEarned);
     socket.on('error_event', onError);
 
     if (socket.connected) {
@@ -296,6 +325,7 @@ export function usePokerSocket() {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('authenticated', onAuthenticated);
+      socket.off('auth_error', onAuthError);
       socket.off('room_state_update', onRoomStateUpdate);
       socket.off('minigame_challenge', onMiniGameChallenge);
       socket.off('minigame_result', onMiniGameResult);
@@ -304,10 +334,12 @@ export function usePokerSocket() {
       socket.off('lucky_coin_triggered', onLuckyCoin);
       socket.off('item_unlocked', onItemUnlocked);
       socket.off('win_streak_bonus', onWinStreakBonus);
+      socket.off('arena_bill_earned', onArenaBillEarned);
       socket.off('error_event', onError);
     };
   }, [
     pushToast,
+    resetMatchState,
     setAccount,
     setActiveChallenge,
     setConnected,
@@ -324,21 +356,18 @@ export function usePokerSocket() {
   }, [setMuted]);
 
   const bindAccountSession = useCallback(
-    (acc: Account) => {
+    (acc: Account, token: string) => {
       localStorage.setItem(SESSION_STORAGE_KEY, acc.id);
       setAccount(acc);
-      getSocket().emit('authenticate', {
-        username: acc.username,
-        displayName: acc.displayName,
-      });
+      getSocket().emit('authenticate', { token });
     },
     [setAccount]
   );
 
   const login = useCallback(
     async (username: string, password: string) => {
-      const acc = await loginAccountApi(username, password);
-      bindAccountSession(acc);
+      const { account: acc, token } = await loginAccountApi(username, password);
+      bindAccountSession(acc, token);
       return acc;
     },
     [bindAccountSession]
@@ -346,8 +375,8 @@ export function usePokerSocket() {
 
   const register = useCallback(
     async (username: string, password: string, displayName?: string) => {
-      const acc = await registerAccountApi(username, password, displayName);
-      bindAccountSession(acc);
+      const { account: acc, token } = await registerAccountApi(username, password, displayName);
+      bindAccountSession(acc, token);
       return acc;
     },
     [bindAccountSession]
@@ -355,29 +384,34 @@ export function usePokerSocket() {
 
   const logout = useCallback(() => {
     localStorage.removeItem(SESSION_STORAGE_KEY);
+    clearAuthToken();
     resetMatchState();
     setAccount(null);
   }, [resetMatchState, setAccount]);
 
   const createRoom = useCallback(
-    (options: { roomName?: string; botCount?: number; maxBuyIn?: number }) => {
-      const acc = useGameStore.getState().account;
+    (options: {
+      roomName?: string;
+      mode?: RoomMode;
+      quickArenaMatch?: boolean;
+      botCount?: number;
+      maxBuyIn?: number;
+    }) => {
       lastLogTimestampRef.current = 0;
       lastHandNumberRef.current = 0;
       lastCommunityCountRef.current = 0;
       lastPotRef.current = 0;
-      getSocket().emit('create_room', { ...options, accountId: acc?.id });
+      getSocket().emit('create_room', { ...options });
     },
     []
   );
 
   const joinRoom = useCallback((roomId: string) => {
-    const acc = useGameStore.getState().account;
     lastLogTimestampRef.current = 0;
     lastHandNumberRef.current = 0;
     lastCommunityCountRef.current = 0;
     lastPotRef.current = 0;
-    getSocket().emit('join_room', { roomId: roomId.trim().toUpperCase(), accountId: acc?.id });
+    getSocket().emit('join_room', { roomId: roomId.trim().toUpperCase() });
   }, []);
 
   const leaveRoom = useCallback(() => {
@@ -482,6 +516,13 @@ export function usePokerSocket() {
     [openPhone, pushToast]
   );
 
+  const discardItem = useCallback((itemType: ItemType) => {
+    const currentRoom = useGameStore.getState().room;
+    if (!currentRoom) return;
+    soundEngine.playFoldWhoosh();
+    getSocket().emit('discard_item', { roomId: currentRoom.id, itemType });
+  }, []);
+
   const takeLoan = useCallback((packageType: LoanPackage) => {
     const currentRoom = useGameStore.getState().room;
     if (!currentRoom) return;
@@ -496,6 +537,18 @@ export function usePokerSocket() {
     getSocket().emit('repay_loan', { roomId: currentRoom.id });
     setDebtAlert(null);
   }, [setDebtAlert]);
+
+  const takeLobbyLoan = useCallback(
+    async (packageType: LoanPackage) => {
+      const acc = useGameStore.getState().account;
+      if (!acc) return;
+      const updated = await takeAccountLoanApi(acc.id, packageType);
+      soundEngine.playChipClink();
+      setAccount(updated);
+      pushToast('Đã vay chip thành công ngoài sảnh.', 'info');
+    },
+    [pushToast, setAccount]
+  );
 
   const repayLobbyLoan = useCallback(async () => {
     const acc = useGameStore.getState().account;
@@ -604,10 +657,12 @@ export function usePokerSocket() {
     triggerSkill,
     submitMiniGame,
     useItem,
+    discardItem,
     openPhone,
     closePhone,
     takeLoan,
     repayLoan,
+    takeLobbyLoan,
     repayLobbyLoan,
     buySkill,
     updateLoadout,

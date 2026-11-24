@@ -146,11 +146,21 @@ export function evaluateMiniGameSubmission(
     };
   }
 
+  const elapsedMs = now - challenge.createdAt;
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 80) {
+    return {
+      success: false,
+      reason: 'Anti-cheat: submission faster than human reaction time',
+      accuracy: 0,
+      timedOut: false,
+    };
+  }
+
   const { params, miniGameType } = challenge;
 
   if (miniGameType === 'TIMING_BAR') {
     const pos = submission.cursorPosition;
-    if (typeof pos !== 'number' || Number.isNaN(pos) || pos < 0 || pos > 1) {
+    if (typeof pos !== 'number' || !Number.isFinite(pos) || pos < 0 || pos > 1) {
       return { success: false, reason: 'Invalid cursorPosition', accuracy: 0, timedOut: false };
     }
     // Slight half-needle edge forgiveness (0.025) so touching the green border visually counts as a hit
@@ -169,13 +179,24 @@ export function evaluateMiniGameSubmission(
   }
 
   if (miniGameType === 'BALANCE_CIRCLE') {
+    if (elapsedMs < 800) {
+      return {
+        success: false,
+        reason: 'Anti-cheat: balance challenge completed too early',
+        accuracy: 0,
+        timedOut: false,
+      };
+    }
     // Radius threshold derived from zoneWidth
     const maxAllowedRadius = Math.min(0.9, params.zoneWidth * 1.6);
     let ratio = 0;
 
     if (Array.isArray(submission.balanceSamples) && submission.balanceSamples.length >= 3) {
+      if (submission.balanceSamples.length > 300) {
+        return { success: false, reason: 'Too many balance samples', accuracy: 0, timedOut: false };
+      }
       const validSamples = submission.balanceSamples.filter(
-        (v) => typeof v === 'number' && !Number.isNaN(v) && v >= 0 && v <= 1
+        (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1
       );
       if (validSamples.length === 0) {
         return { success: false, reason: 'Invalid balance samples', accuracy: 0, timedOut: false };
@@ -184,9 +205,11 @@ export function evaluateMiniGameSubmission(
       ratio = insideCount / validSamples.length;
     } else if (
       typeof submission.balanceHoldRatio === 'number' &&
-      !Number.isNaN(submission.balanceHoldRatio)
+      Number.isFinite(submission.balanceHoldRatio) &&
+      submission.balanceHoldRatio >= 0 &&
+      submission.balanceHoldRatio <= 1
     ) {
-      ratio = Math.max(0, Math.min(1, submission.balanceHoldRatio));
+      ratio = submission.balanceHoldRatio;
     } else {
       return { success: false, reason: 'Missing balance payload', accuracy: 0, timedOut: false };
     }
@@ -213,10 +236,35 @@ export function evaluateMiniGameSubmission(
 
   let totalAccuracy = 0;
   let hits = 0;
+  let prevNonZeroTap = -1;
   for (let i = 0; i < params.rhythmBeatsMs.length; i++) {
     const tap = taps[i];
-    if (typeof tap !== 'number' || Number.isNaN(tap) || tap < 0 || tap > MINIGAME_TIMEOUT_MS) {
+    if (
+      typeof tap !== 'number' ||
+      !Number.isFinite(tap) ||
+      tap < 0 ||
+      tap > MINIGAME_TIMEOUT_MS
+    ) {
       return { success: false, reason: 'Invalid tap timestamp', accuracy: 0, timedOut: false };
+    }
+    if (tap > elapsedMs + 1200) {
+      return {
+        success: false,
+        reason: 'Anti-cheat: tap timestamp ahead of server clock',
+        accuracy: 0,
+        timedOut: false,
+      };
+    }
+    if (tap > 0) {
+      if (prevNonZeroTap > 0 && tap < prevNonZeroTap) {
+        return {
+          success: false,
+          reason: 'Anti-cheat: non-monotonic rhythm taps',
+          accuracy: 0,
+          timedOut: false,
+        };
+      }
+      prevNonZeroTap = tap;
     }
     const diff = Math.abs(tap - params.rhythmBeatsMs[i]);
     if (diff <= params.rhythmToleranceMs) {

@@ -48,6 +48,7 @@ export type WinEffectId =
   | 'LIGHTNING';
 
 export type RoomStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
+export type RoomMode = 'STANDARD' | 'ARENA';
 export type GamePhase =
   | 'WAITING'
   | 'PRE_FLOP'
@@ -88,6 +89,7 @@ export interface Account {
   username: string;
   displayName: string;
   chips: number;
+  vnd500kBills: number;
   loanBalance: number;
   ownedItems: ItemType[];
   skillInventory: SkillInventory;
@@ -153,6 +155,8 @@ export interface PublicPlayerView {
   turnRemainingSeconds: number;
   via: number;
   winStreak: number;
+  arenaBuyIn: number;
+  arenaBillsEarned: number;
   ownedItems: ItemType[];
   equippedSkills: SkillType[];
   equippedSkin: SkinId;
@@ -187,6 +191,7 @@ export interface FilteredRoomState {
   id: string;
   name: string;
   hostAccountId: string;
+  mode: RoomMode;
   status: RoomStatus;
   phase: GamePhase;
   maxBuyIn: number;

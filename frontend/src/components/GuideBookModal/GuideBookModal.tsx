@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { soundEngine } from '../../services/soundEngine';
 import { VoxelIcon3D } from '../VoxelIcon3D';
 
 export interface GuideBookModalProps {
@@ -25,7 +26,7 @@ const HAND_RANKINGS: HandRankEntry[] = [
     order: 1,
     viName: 'Sảnh Chúa',
     enName: 'Royal Flush',
-    desc: '10 - J - Q - K - A cùng một chất. Tay bài mạnh tuyệt đối!',
+    desc: '10 - J - Q - K - A cùng một chất. Tay bài mạnh tuyệt đối.',
     cards: [
       { rank: '10', suit: '♠', highlight: true },
       { rank: 'J', suit: '♠', highlight: true },
@@ -90,7 +91,7 @@ const HAND_RANKINGS: HandRankEntry[] = [
     order: 6,
     viName: 'Sảnh',
     enName: 'Straight',
-    desc: '5 lá liên tiếp nhau khác chất (A-2-3-4-5 là sảnh nhỏ nhất).',
+    desc: '5 lá liên tiếp khác chất (A-2-3-4-5 là sảnh nhỏ nhất).',
     cards: [
       { rank: '6', suit: '♣', highlight: true },
       { rank: '7', suit: '♦', highlight: true },
@@ -153,25 +154,25 @@ const HAND_RANKINGS: HandRankEntry[] = [
   },
 ];
 
-function MiniPixelCard({ card }: { card: MiniCardSpec }) {
+function BookMiniCard({ card }: { card: MiniCardSpec }) {
   const isRed = card.suit === '♥' || card.suit === '♦';
   return (
     <div
-      className={`flex h-12 w-9 flex-col items-center justify-between border-2 px-0.5 py-0.5 font-mono leading-none transition-transform ${
+      className={`flex h-11 w-8 flex-col items-center justify-between border px-0.5 py-0.5 font-mono leading-none ${
         card.highlight
-          ? '-translate-y-0.5 border-border-gold bg-content-primary shadow-[2px_2px_0_rgba(0,0,0,0.75)]'
-          : 'border-border-subtle bg-content-secondary/75 opacity-75'
+          ? 'border-surface-wood bg-content-primary shadow-[1px_1px_0_rgba(0,0,0,0.35)]'
+          : 'border-surface-wood/30 bg-content-secondary/40 opacity-65'
       }`}
     >
       <span
-        className={`self-start text-[10px] font-extrabold ${
+        className={`self-start text-[9px] font-extrabold ${
           isRed ? 'text-status-danger' : 'text-content-inverse'
         }`}
       >
         {card.rank}
       </span>
       <span
-        className={`text-base leading-none ${
+        className={`text-sm leading-none ${
           isRed ? 'text-status-danger' : 'text-content-inverse'
         }`}
       >
@@ -181,407 +182,525 @@ function MiniPixelCard({ card }: { card: MiniCardSpec }) {
   );
 }
 
-const TABS = [
-  { id: 'hands', label: '1. 10 BỘ BÀI' },
-  { id: 'rules', label: '2. VÒNG CƯỢC & CHIP' },
-  { id: 'time_via', label: '3. ĐỒNG HỒ & VÍA' },
-  { id: 'items', label: '4. 6 ĐỒ VẬT' },
-  { id: 'skills', label: '5. TUYỆT KỸ & PHÍM' },
+const SPREADS = [
+  { id: 'hands', label: 'I. 10 BỘ BÀI' },
+  { id: 'rules', label: 'II. CƯỢC & SỚI' },
+  { id: 'time_via', label: 'III. GIỜ & VÍA' },
+  { id: 'items', label: 'IV. 5 ĐỒ VẬT' },
+  { id: 'skills', label: 'V. 6 LÁ PHÉP' },
 ] as const;
 
-type TabId = (typeof TABS)[number]['id'];
+type SpreadId = (typeof SPREADS)[number]['id'];
 
 export function GuideBookModal({ open, onClose }: GuideBookModalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('hands');
+  const [activeSpread, setActiveSpread] = useState<SpreadId>('hands');
 
   if (!open) return null;
 
-  const currentIndex = TABS.findIndex((t) => t.id === activeTab);
+  const spreadIndex = SPREADS.findIndex((s) => s.id === activeSpread);
+  const leftPageNum = spreadIndex * 2 + 1;
+  const rightPageNum = spreadIndex * 2 + 2;
+
+  const goToSpread = (id: SpreadId) => {
+    if (id === activeSpread) return;
+    soundEngine.playBookOpen();
+    setActiveSpread(id);
+  };
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-surface-canvas/82 p-4">
-      <div className="voxel-panel-gold flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden">
-        {/* Book Header */}
-        <div className="flex items-center justify-between border-b-2 border-border-gold bg-surface-panel px-5 py-3">
-          <div className="flex items-center gap-3">
-            <VoxelIcon3D kind="book" size={22} title="Sổ Tay Thần Bài" />
-            <div>
-              <h2 className="font-display text-base font-extrabold tracking-widest text-accent-gold">
-                SỔ TAY THẦN BÀI
-              </h2>
-              <div className="font-mono text-[10px] text-content-muted">
-                HƯỚNG DẪN TRỰC QUAN · 10 BỘ BÀI · ĐỒ VẬT · TUYỆT KỸ
-              </div>
-            </div>
+    <div
+      onClick={onClose}
+      className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-surface-canvas/85 p-4"
+    >
+      {/* Open Leather-Bound Book Container (fixed uniform book height on every spread!) */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-[82vh] max-h-[650px] min-h-[480px] w-full max-w-5xl flex-col"
+      >
+        {/* Top Ribbon Bookmarks sticking out from the top of the book */}
+        <div className="flex items-end justify-between px-4">
+          <div className="flex gap-1">
+            {SPREADS.map((s) => {
+              const isActive = activeSpread === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => goToSpread(s.id)}
+                  className={`border-x-2 border-t-2 px-3 py-1.5 font-mono text-[11px] font-extrabold tracking-wider transition ${
+                    isActive
+                      ? 'border-border-gold bg-content-primary text-content-inverse'
+                      : 'border-border-gold/50 bg-surface-wood text-content-secondary hover:bg-surface-elevated hover:text-accent-gold'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="voxel-btn border-2 border-border-subtle bg-surface-canvas px-3 py-1 font-mono text-xs font-extrabold text-content-primary hover:border-border-gold hover:text-accent-gold"
+            className="border-x-2 border-t-2 border-border-gold bg-surface-wood px-3.5 py-1.5 font-mono text-[11px] font-extrabold text-accent-gold hover:bg-accent-gold hover:text-content-inverse"
           >
-            ĐÓNG [X]
+            GẤP SÁCH [X]
           </button>
         </div>
 
-        {/* Chapter Tabs */}
-        <div className="grid grid-cols-5 border-b-2 border-border-subtle bg-surface-canvas">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`border-r border-border-subtle py-2.5 font-mono text-[11px] font-extrabold transition last:border-r-0 ${
-                activeTab === tab.id
-                  ? 'bg-accent-gold text-content-inverse'
-                  : 'text-content-secondary hover:bg-surface-elevated hover:text-accent-gold'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto bg-surface-panel/95 p-5">
-          {/* TAB 1: VISUAL 10 HAND RANKINGS */}
-          {activeTab === 'hands' && (
-            <div>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b-2 border-border-gold/50 pb-2">
-                <h3 className="font-mono text-sm font-extrabold tracking-wider text-accent-gold">
-                  THỨ TỰ 10 BỘ BÀI TEXAS HOLD&apos;EM (TỪ MẠNH NHẤT ĐẾN YẾU NHẤT)
-                </h3>
-                <span className="font-mono text-[10px] text-content-muted">
-                  Ghép 5 lá mạnh nhất từ 2 lá tẩy + 5 lá chung
-                </span>
-              </div>
-
-              <div className="grid gap-2.5 md:grid-cols-2">
-                {HAND_RANKINGS.map((hand) => (
-                  <div
-                    key={hand.order}
-                    className="flex items-center justify-between gap-3 border-2 border-border-subtle bg-surface-canvas/80 p-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="bg-accent-gold px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-content-inverse">
-                          #{hand.order}
-                        </span>
-                        <span className="font-mono text-xs font-extrabold text-accent-gold">
-                          {hand.viName}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 font-mono text-[10px] text-content-muted">
-                        {hand.enName}
-                      </div>
-                      <p className="mt-1 text-[11px] leading-snug text-content-secondary">
-                        {hand.desc}
-                      </p>
-                    </div>
-
-                    {/* Visual 5-Card Voxel Hand */}
-                    <div className="flex shrink-0 gap-1">
-                      {hand.cards.map((c, idx) => (
-                        <MiniPixelCard key={idx} card={c} />
+        {/* Leather Hardcover Outer Binding */}
+        <div className="flex flex-1 overflow-hidden border-4 border-border-gold bg-surface-wood p-2.5 shadow-[8px_10px_0_rgba(0,0,0,0.85)]">
+          {/* Open 2-Page Parchment Spread (identical page heights & widths!) */}
+          <div className="grid flex-1 grid-cols-1 overflow-hidden border-2 border-surface-wood bg-content-primary text-content-inverse md:grid-cols-2">
+            {/* ==================== LEFT PAGE ==================== */}
+            <div className="flex h-full flex-col overflow-hidden border-b-2 border-surface-wood/30 md:border-b-0 md:border-r-4 md:border-surface-wood/35">
+              <div className="flex-1 overflow-y-auto px-7 py-6">
+                {/* SPREAD 1 LEFT: HANDS 1-5 */}
+                {activeSpread === 'hands' && (
+                  <div>
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      CHƯƠNG I · BỘ BÀI MẠNH (1–5)
+                    </h2>
+                    <p className="mt-1.5 text-[11px] italic text-content-inverse/70">
+                      Ghép 5 lá mạnh nhất từ 2 lá tẩy và 5 lá chung trên bàn.
+                    </p>
+                    <div className="mt-3 divide-y divide-surface-wood/20">
+                      {HAND_RANKINGS.slice(0, 5).map((hand) => (
+                        <div key={hand.order} className="flex items-center justify-between gap-2 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs font-extrabold text-content-inverse">
+                              {hand.order}. {hand.viName}{' '}
+                              <span className="font-normal text-content-inverse/60">
+                                ({hand.enName})
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[11px] leading-snug text-content-inverse/75">
+                              {hand.desc}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-0.5">
+                            {hand.cards.map((c, idx) => (
+                              <BookMiniCard key={idx} card={c} />
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
 
-          {/* TAB 2: BETTING ROUNDS & 4-COLOR CHIPS */}
-          {activeTab === 'rules' && (
-            <div className="space-y-4">
-              <h3 className="border-b-2 border-border-gold/50 pb-2 font-mono text-sm font-extrabold text-accent-gold">
-                DIỄN BIẾN 1 VÁN BÀI &amp; MỆNH GIÁ 4 MÀU CHIP
-              </h3>
+                {/* SPREAD 2 LEFT: BETTING ROUNDS & 8 STAKE TIERS */}
+                {activeSpread === 'rules' && (
+                  <div className="space-y-4">
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      CHƯƠNG II · VÒNG CƯỢC &amp; MỨC SỚI
+                    </h2>
 
-              {/* Visual 5-Stage Flow */}
-              <div className="grid grid-cols-5 gap-2 text-center font-mono">
-                {[
-                  { step: '1. PRE-FLOP', detail: 'Chia 2 lá tẩy' },
-                  { step: '2. FLOP', detail: 'Lật 3 lá chung' },
-                  { step: '3. TURN', detail: 'Lật lá thứ 4' },
-                  { step: '4. RIVER', detail: 'Lật lá thứ 5' },
-                  { step: '5. SHOWDOWN', detail: 'So bài ăn Pot' },
-                ].map((s) => (
-                  <div key={s.step} className="border-2 border-border-subtle bg-surface-canvas p-2.5">
-                    <div className="text-[11px] font-extrabold text-accent-gold">{s.step}</div>
-                    <div className="mt-1 text-[10px] text-content-secondary">{s.detail}</div>
+                    <div className="space-y-2 text-xs leading-relaxed text-content-inverse/85">
+                      <p>
+                        <strong>1. Pre-Flop:</strong> Mỗi người nhận 2 lá bài tẩy bí mật. Hai người
+                        sau Dealer đặt mù nhỏ (SB) và mù lớn (BB).
+                      </p>
+                      <p>
+                        <strong>2. Flop:</strong> Lật 3 lá bài chung đầu tiên giữa bàn.
+                      </p>
+                      <p>
+                        <strong>3. Turn:</strong> Lật lá bài chung thứ 4.
+                      </p>
+                      <p>
+                        <strong>4. River:</strong> Lật lá bài chung cuối cùng (thứ 5).
+                      </p>
+                      <p>
+                        <strong>5. Showdown:</strong> Những người còn lại lật bài so tay mạnh nhất
+                        ăn Pot (tự động chia Side Pot khi có người All-In).
+                      </p>
+                    </div>
+
+                    <div className="border-t border-surface-wood/25 pt-3">
+                      <div className="font-mono text-xs font-extrabold text-surface-wood">
+                        8 MỨC SỚI (MANG TỐI ĐA · SB / BB)
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] text-content-inverse/85">
+                        <div>• 500 — 10 / 20</div>
+                        <div>• 50K — 1,000 / 2,000</div>
+                        <div>• 1K — 20 / 40</div>
+                        <div>• 100K — 2,000 / 4,000</div>
+                        <div>• 5K — 100 / 200</div>
+                        <div>• 500K — 10K / 20K</div>
+                        <div>• 10K — 200 / 400</div>
+                        <div>• 1TR — 20K / 40K</div>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
 
-              {/* Visual 4-Color Chip Denomination Legend */}
-              <div className="border-2 border-border-subtle bg-surface-canvas/80 p-4">
-                <div className="font-mono text-xs font-extrabold text-content-primary">
-                  BẢNG MÀU CHỒNG CHIP TRÊN BÀN
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {[
-                    { name: 'CHIP ĐEN VÀNG', value: '25,000', cls: 'bg-surface-canvas' },
-                    { name: 'CHIP TÍM', value: '5,000', cls: 'bg-purple-600' },
-                    { name: 'CHIP VÀNG', value: '1,000', cls: 'bg-accent-gold' },
-                    { name: 'CHIP ĐỎ', value: '500', cls: 'bg-status-danger' },
-                    { name: 'CHIP XANH DƯƠNG', value: '100', cls: 'bg-accent-via' },
-                    { name: 'CHIP XANH LÁ', value: '25', cls: 'bg-accent-jade' },
-                  ].map((chip) => (
-                    <div
-                      key={chip.name}
-                      className="flex items-center gap-2.5 border border-border-subtle bg-surface-panel p-2.5"
-                    >
-                      <div className="flex flex-col gap-[2px]">
-                        <span className={`block h-2 w-7 border-x-2 border-t border-content-primary ${chip.cls}`} />
-                        <span className={`block h-2 w-7 border-x-2 border-t border-content-primary ${chip.cls}`} />
-                        <span className={`block h-2 w-7 border-x-2 border-t border-content-primary ${chip.cls}`} />
-                      </div>
-                      <div className="font-mono">
-                        <div className="text-[10px] text-content-muted">{chip.name}</div>
-                        <div className="text-sm font-extrabold text-content-primary">
-                          {chip.value}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-l-4 border-accent-gold bg-surface-canvas/70 px-4 py-3 text-xs text-content-secondary">
-                <span className="font-mono font-extrabold text-content-primary">
-                  SIDE POT &amp; LƯU TRỮ:
-                </span>{' '}
-                Hệ thống tự chia Main Pot / Side Pot khi có người ít chip đi All-In. Kết thúc trận,{' '}
-                <strong className="text-accent-gold">CHỈ CÓ SỐ CHIP</strong> được lưu vĩnh viễn vào
-                tài khoản của bạn!
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: TIME BANK CLOCK & VIA */}
-          {activeTab === 'time_via' && (
-            <div className="space-y-4">
-              <h3 className="border-b-2 border-border-gold/50 pb-2 font-mono text-sm font-extrabold text-accent-gold">
-                ĐỒNG HỒ QUỸ THỜI GIAN &amp; NĂNG LƯỢNG VÍA
-              </h3>
-
-              <div className="border-l-4 border-accent-gold bg-surface-canvas/75 px-4 py-3">
-                <div className="font-mono text-xs font-extrabold text-accent-gold">
-                  ĐỒNG HỒ BÀN (03:00 MỖI VÁN · 20 GIÂY/LƯỢT)
-                </div>
-                <p className="mt-1.5 text-xs leading-relaxed text-content-secondary">
-                  Mỗi ván bạn có 3 phút (03:00) quỹ thời gian và 20 giây mỗi lượt (qua ván mới tự
-                  động hồi đầy 03:00). Nếu cạn sạch 00:00 mà bạn đang có <strong>Ly Trà Đá</strong>,
-                  ly sẽ tự động vỡ để cứu nguy <strong>+30 giây</strong>!
-                </p>
-              </div>
-
-              <div className="border-l-4 border-accent-via bg-surface-canvas/75 px-4 py-3">
-                <div className="flex items-center gap-2 font-mono text-xs font-extrabold text-accent-via">
-                  <VoxelIcon3D kind="via" size={16} />
-                  NĂNG LƯỢNG VÍA (0 - 100)
-                </div>
-                <p className="mt-1.5 text-xs leading-relaxed text-content-secondary">
-                  Khởi đầu với 30 Vía. Tự hồi <strong>+10 Vía</strong> sau mỗi vòng cược và{' '}
-                  <strong>+20 Vía</strong> khi thắng ván. Đặc biệt:{' '}
-                  <strong className="text-accent-gold">
-                    thắng 3 ván liên tiếp sẽ được thưởng nóng +50% số Chip hiện có và +30 Vía!
-                  </strong>
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: 5 EVERYDAY ITEMS */}
-          {activeTab === 'items' && (
-            <div className="space-y-3">
-              <h3 className="border-b-2 border-border-gold/50 pb-2 font-mono text-sm font-extrabold text-accent-gold">
-                6 ĐỒ VẬT QUEN THUỘC (MỖI 3 VÁN THẮNG TẶNG 1 MÓN)
-              </h3>
-
-              <div className="border-2 border-accent-jade bg-accent-jade/10 px-4 py-2.5 text-xs text-content-primary">
-                <strong>Quy tắc nhận đồ:</strong> Mỗi trận mới bàn bắt đầu trống. Cứ thắng đủ{' '}
-                <strong>3 ván trong bàn</strong>, hệ thống tặng ngẫu nhiên 1 món chưa có đặt ngay lên
-                góc bàn của bạn (chỉ dùng trong trận đó; đủ 5 món thưởng +500 Chip).
-              </div>
-
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {[
-                  {
-                    icon: 'phone' as const,
-                    name: '1. CHIẾC ĐIỆN THOẠI',
-                    tag: 'VAY CHIP VĨNH VIỄN',
-                    desc: 'Vay nóng +2.000 / +5.000 / +10.000 Chip (lãi +15%/ván). Khoản vay được lưu thẳng vào tài khoản kể cả khi bạn rời bàn (có thể trả nợ ở ngoài sảnh hoặc trong bàn).',
-                  },
-                  {
-                    icon: 'incense' as const,
-                    name: '2. BÁT HƯƠNG MINI',
-                    tag: '1–5 NÉN · 100 VÍA / NÉN',
-                    desc: '1 nén (miễn phí): 80% Đôi · 2 nén: 70% 2 Đôi · 3 nén: 60% Tam · 4 nén: 50% Sảnh · 5 nén: 40% Thùng (mỗi cấp thấp hơn tự +2% mỗi lần thắp thêm, tối đa 100%). Thắp thêm tốn 100 Vía; 4 lượt không thắp hương sẽ cháy hết.',
-                  },
-                  {
-                    icon: 'mango' as const,
-                    name: '3. QUẢ XOÀI MAY MẮN',
-                    tag: '2 LẦN · KHIÊN LỘ TẨY',
-                    desc: 'Bật Khiên Xoài tự động chặn 1 lần bị Lộ Tẩy nếu trượt Mini-game.',
-                  },
-                  {
-                    icon: 'tea' as const,
-                    name: '4. LY TRÀ ĐÁ',
-                    tag: '3 NGỤM · 1 LẦN/VÒNG',
-                    desc: 'Mỗi lần uống cộng +20 giây cho lượt & đồng hồ cá nhân (tối đa 1 lần/vòng cược). Nếu cạn sạch 00:00 sẽ tự vỡ cứu nguy +30 giây!',
-                  },
-                  {
-                    icon: 'coin' as const,
-                    name: '5. ĐỒNG XU HỘ MỆNH',
-                    tag: 'BỊ ĐỘNG',
-                    desc: 'Tự kích hoạt khi bạn thua All-In với tỉ lệ thắng ban đầu < 25%, hoàn lại 15% số chip đã cược.',
-                  },
-                  {
-                    icon: 'noodles' as const,
-                    name: '6. BÁT MÌ TÔM',
-                    tag: '3 MIẾNG · MAX VÍA 120',
-                    desc: 'Chừng nào còn Bát Mì Tôm trên bàn, giới hạn Vía tối đa của bạn được nâng lên 120! Cứ mỗi lần thắng ván bạn sẽ ăn 1 miếng (mì vơi dần, ăn hết 3 lần bát sẽ biến mất).',
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-start gap-3 border-2 border-border-subtle bg-surface-canvas/80 p-3"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center border border-border-subtle bg-surface-panel">
-                      <VoxelIcon3D kind={item.icon} size={28} title={item.name} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-1 font-mono">
-                        <span className="text-xs font-extrabold text-accent-gold">{item.name}</span>
-                        <span className="border border-border-subtle bg-surface-panel px-1.5 py-0.5 text-[9px] font-bold text-accent-via">
-                          {item.tag}
-                        </span>
-                      </div>
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-content-secondary">
-                        {item.desc}
+                {/* SPREAD 3 LEFT: TIME BANK */}
+                {activeSpread === 'time_via' && (
+                  <div className="space-y-4">
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      CHƯƠNG III · ĐỒNG HỒ BÀN CHƠI
+                    </h2>
+                    <div className="space-y-3 text-xs leading-relaxed text-content-inverse/85">
+                      <p>
+                        Mỗi ván chơi bạn được cấp quỹ thời gian <strong>03:00 (3 phút)</strong> và
+                        giới hạn <strong>20 giây mỗi lượt đi</strong>.
+                      </p>
+                      <p>
+                        Đồng hồ chỉ chạy khi đến lượt bạn, hoặc khi bạn đang mở Điện Thoại / chơi
+                        Mini-game tuyệt kỹ. Qua ván mới quỹ thời gian tự động hồi đầy lại{' '}
+                        <strong>03:00</strong>.
+                      </p>
+                      <p className="border-l-2 border-surface-wood pl-3 italic">
+                        Cứu nguy giờ chót: Nếu cạn sạch 00:00 mà bạn đang có{' '}
+                        <strong>Ly Trà Đá</strong>, ly sẽ tự động vỡ để tặng thêm{' '}
+                        <strong>+30 giây</strong>!
                       </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
 
-          {/* TAB 5: 6 MAGIC SPELL CARDS, SHOP & CONTROLS */}
-          {activeTab === 'skills' && (
-            <div className="space-y-4">
-              <h3 className="border-b-2 border-border-gold/50 pb-2 font-mono text-sm font-extrabold text-accent-gold">
-                6 LÁ PHÉP THẦN BÀI · TIỆM PHÉP &amp; PHÍM TẮT
-              </h3>
-
-              <div className="border-2 border-accent-via bg-accent-via/10 px-4 py-2.5 text-xs text-content-primary">
-                <strong>Quy tắc Tiệm Phép:</strong> Trước khi vào bàn, mở{' '}
-                <strong className="text-accent-gold">Tiệm Phép &amp; Trang Bị</strong> ngoài sảnh để
-                dùng Chip mua cộng dồn lượt dùng để dành. Bạn được chọn mang vào tối đa{' '}
-                <strong className="text-accent-gold">3 lá phép</strong> mỗi trận (bắt đầu trận sẽ
-                trừ 1 lượt cho mỗi lá đang mang).
-              </div>
-
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {[
-                  {
-                    icon: 'sleight' as const,
-                    name: 'TRÁO BÀI TAY ÁO · 35 VÍA · 500 CHIP',
-                    tag: 'TIMING BAR',
-                    desc: 'Chọn 1 lá bài tẩy và căn kim vào vùng xanh để tráo lấy lá mới (tăng mạnh vận may theo Bát Hương).',
-                  },
-                  {
-                    icon: 'eagle' as const,
-                    name: 'TÂM NHÃN ĐỌC VỊ · 30 VÍA · 800 CHIP',
-                    tag: 'BÁM Ô DI CHUYỂN',
-                    desc: 'Giữ chuột bám theo ô vuông di chuyển 2.5s để nhìn trộm lá bài chung sắp lật trong 4 giây.',
-                  },
-                  {
-                    icon: 'pressure' as const,
-                    name: 'TỎA KHÍ THẾ · 25 VÍA · 400 CHIP',
-                    tag: 'RHYTHM TAP',
-                    desc: 'Chọn 1 đối thủ, bấm đúng 2/3 nhịp để trừ 10 giây đồng hồ của họ và gắn Áp Lực.',
-                  },
-                  {
-                    icon: 'siphon' as const,
-                    name: 'HÚT VÍA ĐỐI THỦ · 20 VÍA · 350 CHIP',
-                    tag: 'TIMING BAR',
-                    desc: 'Chọn 1 đối thủ để hút tối đa 25 Vía của họ và hồi ít nhất +15 Vía cho bản thân.',
-                  },
-                  {
-                    icon: 'freeze' as const,
-                    name: 'NGƯNG ĐỌNG THỜI GIAN · 25 VÍA · 400 CHIP',
-                    tag: 'BÁM Ô DI CHUYỂN',
-                    desc: 'Giữ vững nhịp tâm trí để cộng +15 giây quỹ thời gian và +10 giây cho lượt đi hiện tại.',
-                  },
-                  {
-                    icon: 'pokerface' as const,
-                    name: 'MẶT LẠNH TĨNH TÂM · 20 VÍA · 350 CHIP',
-                    tag: 'RHYTHM TAP',
-                    desc: 'Xóa Áp Lực và úp lại 1 lá bài bị Lộ Tẩy (hoặc bật 1 lớp Khiên chống Lộ Tẩy nếu chưa bị lộ).',
-                  },
-                ].map((s) => (
-                  <div
-                    key={s.name}
-                    className="flex items-start gap-3 border-2 border-border-subtle bg-surface-canvas/80 p-3"
-                  >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-border-subtle bg-surface-panel">
-                      <VoxelIcon3D kind={s.icon} size={24} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-mono text-[11px] font-extrabold text-accent-gold">
-                        {s.name}
-                      </div>
-                      <div className="mt-0.5 font-mono text-[9px] font-bold text-accent-via">
-                        MINI-GAME: {s.tag}
-                      </div>
-                      <p className="mt-1 text-[11px] leading-snug text-content-secondary">{s.desc}</p>
+                {/* SPREAD 4 LEFT: ITEMS 1-3 */}
+                {activeSpread === 'items' && (
+                  <div>
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      CHƯƠNG IV · ĐỒ VẬT (1–3)
+                    </h2>
+                    <p className="mt-1.5 text-[11px] italic text-content-inverse/70">
+                      Thắng mỗi 3 ván được tặng 1 món (tối đa 3 món trên bàn). Bấm vào đồ để Sử dụng hoặc Ném thùng rác.
+                    </p>
+                    <div className="mt-3 divide-y divide-surface-wood/20">
+                      {[
+                        {
+                          icon: 'incense' as const,
+                          name: '1. Bát Hương Mini',
+                          note: '1–5 nén · 100 Vía/nén',
+                          desc: 'Sẵn 1 nén (80% Đôi). Nén 2→5: 70% 2 Đôi → 60% Tam → 50% Sảnh → 40% Thùng (cấp thấp +2% mỗi lần thắp, max 100%). 4 lượt không thắp hương cháy hết.',
+                        },
+                        {
+                          icon: 'mango' as const,
+                          name: '2. Quả Xoài May Mắn',
+                          note: 'Bị động · 2 lần',
+                          desc: 'Tự động đỡ hộ mỗi khi bạn trượt Mini-game bị Lộ Tẩy (tự trừ 1 lần, dùng hết 2 lần sẽ biến mất).',
+                        },
+                        {
+                          icon: 'tea' as const,
+                          name: '3. Ly Trà Đá',
+                          note: '3 ngụm · 1 lần/vòng',
+                          desc: 'Mỗi lần uống +20 giây lượt & quỹ giờ. Nếu cạn 00:00 sẽ tự vỡ cứu nguy +30 giây.',
+                        },
+                      ].map((item) => (
+                        <div key={item.name} className="flex items-start gap-3 py-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-surface-wood/30 bg-surface-canvas/90">
+                            <VoxelIcon3D kind={item.icon} size={24} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs font-extrabold text-content-inverse">
+                              {item.name}{' '}
+                              <span className="font-normal text-surface-wood">· {item.note}</span>
+                            </div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-content-inverse/80">
+                              {item.desc}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+
+                {/* SPREAD 5 LEFT: SKILLS 1-3 */}
+                {activeSpread === 'skills' && (
+                  <div>
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      CHƯƠNG V · LÁ PHÉP (1–3)
+                    </h2>
+                    <p className="mt-1.5 text-[11px] italic text-content-inverse/70">
+                      Mua cộng dồn lượt dùng ở Cửa Hàng ngoài sảnh. Mang tối đa 3 lá phép mỗi trận.
+                    </p>
+                    <div className="mt-3 divide-y divide-surface-wood/20">
+                      {[
+                        {
+                          icon: 'sleight' as const,
+                          name: '1. Tráo Bài Tay Áo',
+                          cost: '35 Vía · 500 Chip · Timing Bar',
+                          desc: 'Đổi 1 lá bài tẩy chưa bị lộ lấy lá mới từ bộ bài (hưởng vận may Bát Hương).',
+                        },
+                        {
+                          icon: 'eagle' as const,
+                          name: '2. Tâm Nhãn Đọc Vị',
+                          cost: '30 Vía · 800 Chip · Bám Ô',
+                          desc: 'Giữ chuột bám sát ô di chuyển 2.5s để nhìn trộm lá chung sắp lật trong 4 giây.',
+                        },
+                        {
+                          icon: 'pressure' as const,
+                          name: '3. Tỏa Khí Thế',
+                          cost: '20 Vía · 400 Chip · Rhythm Tap',
+                          desc: 'Chọn 1 đối thủ, bấm chuẩn 2/3 nhịp để trừ 10 giây đồng hồ và gắn Áp Lực.',
+                        },
+                      ].map((s) => (
+                        <div key={s.name} className="flex items-start gap-3 py-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-surface-wood/30 bg-surface-canvas/90">
+                            <VoxelIcon3D kind={s.icon} size={24} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs font-extrabold text-content-inverse">
+                              {s.name}
+                            </div>
+                            <div className="font-mono text-[10px] font-bold text-surface-wood">
+                              {s.cost}
+                            </div>
+                            <p className="mt-1 text-[11px] leading-snug text-content-inverse/80">
+                              {s.desc}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="border-l-4 border-status-danger bg-status-danger/10 px-4 py-3 text-xs text-content-secondary">
-                <strong className="font-mono text-status-danger">HÌNH PHẠT LỘ TẨY:</strong> Mini-game
-                trượt hoặc quá 6 giây sẽ lật ngửa công khai 1 lá bài tẩy của bạn (trừ khi có Khiên
-                Quả Xoài / Mặt Lạnh). Mỗi lần dùng đều cộng EXP tăng cấp Lv.1 → Lv.10 trong trận!
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 font-mono text-xs">
-                <div className="border border-border-subtle bg-surface-canvas p-2.5">
-                  <span className="text-accent-gold">[SPACE]</span> Thao tác nhanh trong Mini-Game
-                </div>
-                <div className="border border-border-subtle bg-surface-canvas p-2.5">
-                  <span className="text-accent-gold">[F3]</span> Bật/tắt bảng FPS, Ping &amp; Server
-                </div>
+              {/* Left Page Footer */}
+              <div className="flex items-center justify-between border-t border-surface-wood/20 px-7 py-2.5 font-mono text-[11px] text-content-inverse/65">
+                <button
+                  type="button"
+                  disabled={spreadIndex <= 0}
+                  onClick={() => goToSpread(SPREADS[spreadIndex - 1].id)}
+                  className="font-extrabold text-surface-wood hover:underline disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  &lt; LẬT TRANG TRƯỚC
+                </button>
+                <span>Trang {leftPageNum}</span>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Book Footer Navigation */}
-        <div className="flex items-center justify-between border-t-2 border-border-subtle bg-surface-canvas px-5 py-2.5 font-mono text-xs">
-          <button
-            type="button"
-            disabled={currentIndex <= 0}
-            onClick={() => setActiveTab(TABS[currentIndex - 1].id)}
-            className="voxel-btn border border-border-subtle bg-surface-panel px-3 py-1 font-bold text-content-primary disabled:opacity-35"
-          >
-            &lt; TRANG TRƯỚC
-          </button>
-          <span className="text-content-muted">
-            TRANG {currentIndex + 1} / {TABS.length}
-          </span>
-          <button
-            type="button"
-            disabled={currentIndex >= TABS.length - 1}
-            onClick={() => setActiveTab(TABS[currentIndex + 1].id)}
-            className="voxel-btn border border-border-gold bg-accent-gold px-3 py-1 font-extrabold text-content-inverse disabled:opacity-35"
-          >
-            TRANG SAU &gt;
-          </button>
+            {/* ==================== RIGHT PAGE ==================== */}
+            <div className="flex h-full flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-7 py-6">
+                {/* SPREAD 1 RIGHT: HANDS 6-10 */}
+                {activeSpread === 'hands' && (
+                  <div>
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      BỘ BÀI PHỔ THÔNG (6–10)
+                    </h2>
+                    <p className="mt-1.5 text-[11px] italic text-content-inverse/70">
+                      Khi trùng bộ bài, người có lá phụ (kicker) cao hơn sẽ thắng.
+                    </p>
+                    <div className="mt-3 divide-y divide-surface-wood/20">
+                      {HAND_RANKINGS.slice(5, 10).map((hand) => (
+                        <div key={hand.order} className="flex items-center justify-between gap-2 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs font-extrabold text-content-inverse">
+                              {hand.order}. {hand.viName}{' '}
+                              <span className="font-normal text-content-inverse/60">
+                                ({hand.enName})
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[11px] leading-snug text-content-inverse/75">
+                              {hand.desc}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-0.5">
+                            {hand.cards.map((c, idx) => (
+                              <BookMiniCard key={idx} card={c} />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SPREAD 2 RIGHT: CHIP DENOMINATIONS & RESERVE */}
+                {activeSpread === 'rules' && (
+                  <div className="space-y-4">
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      MỆNH GIÁ 6 MÀU CHIP
+                    </h2>
+                    <div className="divide-y divide-surface-wood/20 font-mono text-xs">
+                      {[
+                        { name: 'Chip Đen Vàng', value: '25,000', cls: 'bg-surface-canvas' },
+                        { name: 'Chip Tím', value: '5,000', cls: 'bg-purple-600' },
+                        { name: 'Chip Vàng', value: '1,000', cls: 'bg-accent-gold' },
+                        { name: 'Chip Đỏ', value: '500', cls: 'bg-status-danger' },
+                        { name: 'Chip Xanh Dương', value: '100', cls: 'bg-accent-via' },
+                        { name: 'Chip Xanh Lá', value: '25', cls: 'bg-accent-jade' },
+                      ].map((chip) => (
+                        <div key={chip.name} className="flex items-center justify-between py-2">
+                          <div className="flex items-center gap-3">
+                            <span className={`inline-block h-3.5 w-7 border border-content-inverse ${chip.cls}`} />
+                            <span className="font-bold text-content-inverse">{chip.name}</span>
+                          </div>
+                          <span className="font-extrabold text-surface-wood">{chip.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="border-l-2 border-surface-wood pl-3 text-xs leading-relaxed text-content-inverse/80">
+                      Số chip dư vượt quá mức sới vẫn được giữ an toàn trong tài khoản ngoài sảnh.
+                      Thắng/thua mỗi ván chỉ cộng trừ đúng phần chênh lệch!
+                    </p>
+                  </div>
+                )}
+
+                {/* SPREAD 3 RIGHT: VIA & WIN STREAK */}
+                {activeSpread === 'time_via' && (
+                  <div className="space-y-4">
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      NĂNG LƯỢNG VÍA &amp; CHUỖI THẮNG
+                    </h2>
+                    <div className="space-y-3 text-xs leading-relaxed text-content-inverse/85">
+                      <p>
+                        <strong>Vía (0–100):</strong> Khởi đầu trận với <strong>30 Vía</strong>. Nếu
+                        đang có <strong>Bát Mì Tôm</strong> trên bàn, giới hạn Vía tối đa tăng lên{' '}
+                        <strong>120</strong>.
+                      </p>
+                      <ul className="list-disc space-y-1 pl-4">
+                        <li>
+                          <strong>Qua mỗi vòng cược</strong> (còn theo bài): <strong>+10 Vía</strong>.
+                        </li>
+                        <li>
+                          <strong>Thắng ván bài:</strong> <strong>+20 Vía</strong>.
+                        </li>
+                        <li>
+                          <strong>Bỏ bài (Fold):</strong> <strong>+5 Vía</strong>.
+                        </li>
+                        <li>
+                          <strong>Tố bài (Raise):</strong> <strong>+5 Vía</strong> mỗi lần tố thêm ít
+                          nhất bằng mức Small Blind.
+                        </li>
+                        <li>
+                          <strong>Chuỗi 3 ván thắng liên tiếp:</strong> thưởng ngay{' '}
+                          <strong>+50 Vía</strong>!
+                        </li>
+                      </ul>
+                      <p className="border-l-2 border-surface-wood pl-3 italic">
+                        Mẹo: Dùng Vía linh hoạt để kích hoạt các Lá Phép hoặc tích đủ 100 Vía thắp
+                        thêm nén nhang cầu may cho kỹ năng Tráo Bài.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* SPREAD 4 RIGHT: ITEMS 4-5 & LOBBY LOAN NOTE */}
+                {activeSpread === 'items' && (
+                  <div>
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      ĐỒ VẬT (4–5) &amp; VAY NGOÀI SẢNH
+                    </h2>
+                    <p className="mt-1.5 text-[11px] italic text-content-inverse/70">
+                      Mỗi món chỉ có 1 công dụng duy nhất — bàn đủ 3 món thưởng nóng +500 Chip.
+                    </p>
+                    <div className="mt-3 divide-y divide-surface-wood/20">
+                      {[
+                        {
+                          icon: 'coin' as const,
+                          name: '4. Đồng Xu Hộ Mệnh',
+                          note: 'Bị động',
+                          desc: 'Tự kích hoạt khi thua All-In với tỉ lệ thắng ban đầu < 25%, hoàn lại 15% số chip cược.',
+                        },
+                        {
+                          icon: 'noodles' as const,
+                          name: '5. Bát Mì Tôm',
+                          note: '3 miếng · Max Vía 120',
+                          desc: 'Nâng Max Vía lên 120 khi còn trên bàn. Mỗi lần thắng ăn 1 miếng, ăn hết 3 lần sẽ biến mất.',
+                        },
+                        {
+                          icon: 'phone' as const,
+                          name: 'Điện Thoại (Chỉ ngoài Sảnh)',
+                          note: 'Vay & Trả Nợ',
+                          desc: 'Bấm mục Vay Nóng ở góc trên sảnh để vay nóng 2K / 5K / 10K Chip hoặc trả khoản vay lưu trong tài khoản.',
+                        },
+                      ].map((item) => (
+                        <div key={item.name} className="flex items-start gap-3 py-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-surface-wood/30 bg-surface-canvas/90">
+                            <VoxelIcon3D kind={item.icon} size={24} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs font-extrabold text-content-inverse">
+                              {item.name}{' '}
+                              <span className="font-normal text-surface-wood">· {item.note}</span>
+                            </div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-content-inverse/80">
+                              {item.desc}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SPREAD 5 RIGHT: SKILLS 4-6 & SHORTCUTS */}
+                {activeSpread === 'skills' && (
+                  <div>
+                    <h2 className="border-b-2 border-surface-wood/30 pb-2 font-display text-base font-extrabold tracking-widest text-surface-wood">
+                      LÁ PHÉP (4–6) &amp; PHÍM TẮT
+                    </h2>
+                    <div className="mt-2 divide-y divide-surface-wood/20">
+                      {[
+                        {
+                          icon: 'siphon' as const,
+                          name: '4. Hút Vía Đối Thủ',
+                          cost: '20 Vía · 350 Chip · Timing Bar',
+                          desc: 'Hút tối đa 25 Vía của 1 đối thủ và hồi ít nhất +15 Vía cho bản thân.',
+                        },
+                        {
+                          icon: 'freeze' as const,
+                          name: '5. Ngưng Đọng Thời Gian',
+                          cost: '25 Vía · 400 Chip · Bám Ô',
+                          desc: 'Cộng +15 giây quỹ thời gian và +10 giây cho lượt đi hiện tại.',
+                        },
+                        {
+                          icon: 'pokerface' as const,
+                          name: '6. Mặt Lạnh Tĩnh Tâm',
+                          cost: '20 Vía · 350 Chip · Rhythm Tap',
+                          desc: 'Xóa Áp Lực và úp lại 1 lá bị Lộ Tẩy (hoặc bật Khiên chống Lộ Tẩy).',
+                        },
+                      ].map((s) => (
+                        <div key={s.name} className="flex items-start gap-3 py-2.5">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-surface-wood/30 bg-surface-canvas/90">
+                            <VoxelIcon3D kind={s.icon} size={24} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs font-extrabold text-content-inverse">
+                              {s.name}
+                            </div>
+                            <div className="font-mono text-[10px] font-bold text-surface-wood">
+                              {s.cost}
+                            </div>
+                            <p className="mt-0.5 text-[11px] leading-snug text-content-inverse/80">
+                              {s.desc}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 border-t border-surface-wood/25 pt-2.5 text-[11px] leading-relaxed text-content-inverse/80">
+                      <strong className="text-status-danger">Lộ Tẩy:</strong> Trượt Mini-game hoặc
+                      quá 6 giây sẽ lật ngửa 1 lá tẩy (lá đã lộ không thể Tráo Bài).
+                      <div className="mt-1.5 font-mono text-[10px] text-surface-wood">
+                        <strong>[SPACE]</strong> Mini-game · <strong>[F3]</strong> Bảng FPS &amp; Ping
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Page Footer */}
+              <div className="flex items-center justify-between border-t border-surface-wood/20 px-7 py-2.5 font-mono text-[11px] text-content-inverse/65">
+                <span>Trang {rightPageNum}</span>
+                <button
+                  type="button"
+                  disabled={spreadIndex >= SPREADS.length - 1}
+                  onClick={() => goToSpread(SPREADS[spreadIndex + 1].id)}
+                  className="font-extrabold text-surface-wood hover:underline disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  LẬT TRANG SAU &gt;
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

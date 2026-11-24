@@ -67,7 +67,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     subtitle: 'ÁP ĐẢO',
     fullName: 'Tỏa Khí Thế',
     iconKind: 'pressure',
-    viaCost: 25,
+    viaCost: 20,
     shopPrice: 400,
     miniGameType: 'RHYTHM_TAP',
     miniGameLabel: 'Rhythm Tap',

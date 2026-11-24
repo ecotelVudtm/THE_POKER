@@ -47,7 +47,7 @@ export function getVoxelChipGeometry(): THREE.ExtrudeGeometry {
 }
 
 let sharedStripeGeo: THREE.BoxGeometry | null = null;
-function getStripeGeometry(): THREE.BoxGeometry {
+export function getStripeGeometry(): THREE.BoxGeometry {
   if (!sharedStripeGeo) {
     sharedStripeGeo = new THREE.BoxGeometry(0.13, 0.008, 0.13);
   }

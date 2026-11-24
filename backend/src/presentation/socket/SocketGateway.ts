@@ -1,7 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { GameDomainEvent } from '../../application/dtos/GameEvents';
-import { AuthenticateAccountUseCase } from '../../application/use-cases/AuthenticateAccountUseCase';
 import { JoinRoomUseCase } from '../../application/use-cases/JoinRoomUseCase';
 import { PlaceBetUseCase } from '../../application/use-cases/PlaceBetUseCase';
 import { RepayLoanUseCase } from '../../application/use-cases/RepayLoanUseCase';
@@ -11,16 +10,21 @@ import { TakeLoanUseCase } from '../../application/use-cases/TakeLoanUseCase';
 import { TriggerSkillUseCase } from '../../application/use-cases/TriggerSkillUseCase';
 import { UseItemUseCase } from '../../application/use-cases/UseItemUseCase';
 import { toPublicAccount } from '../../domain/entities/Account';
-import { BetAction, Room } from '../../domain/entities/Room';
+import { BetAction, Room, RoomMode } from '../../domain/entities/Room';
+import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
 import { filterRoomStateForViewer } from '../../domain/rules/StateFilter';
 import { ItemType } from '../../domain/value-objects/Item';
 import { LoanPackage } from '../../domain/value-objects/Loan';
 import { MiniGameSubmissionPayload, SkillType } from '../../domain/value-objects/Skill';
+import { RateLimiter } from '../../infrastructure/security/RateLimiter';
+import { TokenService } from '../../infrastructure/security/TokenService';
 
 export interface SocketGatewayDeps {
+  accountRepo: IAccountRepository;
   roomRepo: IRoomRepository;
-  authUseCase: AuthenticateAccountUseCase;
+  tokenService: TokenService;
+  rateLimiter: RateLimiter;
   joinRoomUseCase: JoinRoomUseCase;
   startMatchUseCase: StartMatchUseCase;
   placeBetUseCase: PlaceBetUseCase;
@@ -34,6 +38,8 @@ export interface SocketGatewayDeps {
 
 export class SocketGateway {
   public readonly io: Server;
+  /** Per-room async mutex queue preventing race-condition double bets / double payouts */
+  private readonly roomLocks = new Map<string, Promise<void>>();
 
   constructor(httpServer: HttpServer, private readonly deps: SocketGatewayDeps) {
     this.io = new Server(httpServer, {
@@ -41,21 +47,63 @@ export class SocketGateway {
         origin: deps.corsOrigin === '*' ? true : deps.corsOrigin.split(','),
         credentials: true,
       },
+      maxHttpBufferSize: 32 * 1024, // 32KB max packet size anti-DoS
     });
 
     this.registerHandlers();
+  }
+
+  private async runSerialized<T>(roomKey: string | undefined, task: () => Promise<T>): Promise<T> {
+    const key = (roomKey || 'global').trim().toUpperCase();
+    const prev = this.roomLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chained = prev.then(() => current);
+    this.roomLocks.set(key, chained);
+
+    await prev;
+    try {
+      return await task();
+    } finally {
+      release();
+      if (this.roomLocks.get(key) === chained) {
+        this.roomLocks.delete(key);
+      }
+    }
+  }
+
+  private assertSocketRateLimit(socket: Socket, maxEvents = 35, windowMs = 5_000): void {
+    const check = this.deps.rateLimiter.consume(`sock:${socket.id}`, maxEvents, windowMs);
+    if (!check.allowed) {
+      throw new Error('Thao tác quá nhanh. Hệ thống chống spam đang tạm chặn.');
+    }
   }
 
   private registerHandlers(): void {
     this.io.on('connection', (socket: Socket) => {
       socket.on(
         'authenticate',
-        async (payload: { username: string; displayName?: string }) => {
+        async (payload: { token?: string }) => {
           try {
-            const account = await this.deps.authUseCase.execute({
-              username: payload?.username,
-              displayName: payload?.displayName,
-            });
+            this.assertSocketRateLimit(socket, 15, 10_000);
+            const verified = this.deps.tokenService.verify(payload?.token);
+            if (!verified) {
+              socket.data.accountId = undefined;
+              socket.emit('auth_error', {
+                message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.',
+              });
+              return;
+            }
+            const account = await this.deps.accountRepo.findById(verified.accountId);
+            if (!account) {
+              socket.data.accountId = undefined;
+              socket.emit('auth_error', {
+                message: 'Tài khoản không tồn tại. Vui lòng đăng nhập lại.',
+              });
+              return;
+            }
             socket.data.accountId = account.id;
             socket.emit('authenticated', { account: toPublicAccount(account) });
           } catch (err) {
@@ -74,22 +122,22 @@ export class SocketGateway {
         'create_room',
         async (payload: {
           roomName?: string;
+          mode?: RoomMode;
+          quickArenaMatch?: boolean;
           botCount?: number;
           maxBuyIn?: number;
-          smallBlind?: number;
-          bigBlind?: number;
-          accountId?: string;
         }) => {
           try {
-            const accountId = this.resolveAccountId(socket, payload?.accountId);
+            this.assertSocketRateLimit(socket);
+            const accountId = this.resolveAccountId(socket);
             const room = await this.deps.joinRoomUseCase.execute({
               accountId,
               socketId: socket.id,
               roomName: payload?.roomName,
+              mode: payload?.mode,
+              quickArenaMatch: payload?.quickArenaMatch,
               botCount: payload?.botCount,
               maxBuyIn: payload?.maxBuyIn,
-              smallBlind: payload?.smallBlind,
-              bigBlind: payload?.bigBlind,
             });
             await socket.join(room.id);
             this.broadcastRoomState(room);
@@ -101,14 +149,17 @@ export class SocketGateway {
 
       socket.on(
         'join_room',
-        async (payload: { roomId: string; accountId?: string }) => {
+        async (payload: { roomId: string }) => {
           try {
-            const accountId = this.resolveAccountId(socket, payload?.accountId);
-            const room = await this.deps.joinRoomUseCase.execute({
-              roomId: payload?.roomId,
-              accountId,
-              socketId: socket.id,
-            });
+            this.assertSocketRateLimit(socket);
+            const accountId = this.resolveAccountId(socket);
+            const room = await this.runSerialized(payload?.roomId, () =>
+              this.deps.joinRoomUseCase.execute({
+                roomId: payload?.roomId,
+                accountId,
+                socketId: socket.id,
+              })
+            );
             await socket.join(room.id);
             this.broadcastRoomState(room);
           } catch (err) {
@@ -119,27 +170,30 @@ export class SocketGateway {
 
       socket.on('leave_room', async (payload: { roomId: string }) => {
         try {
+          this.assertSocketRateLimit(socket);
           const accountId = this.resolveAccountId(socket);
-          const room = await this.deps.roomRepo.findById(payload?.roomId);
-          if (!room) return;
-          if (room.status === 'WAITING') {
-            room.players = room.players.filter((p) => p.accountId !== accountId);
-            if (room.players.filter((p) => !p.isBot).length === 0) {
-              await this.deps.roomRepo.delete(room.id);
+          await this.runSerialized(payload?.roomId, async () => {
+            const room = await this.deps.roomRepo.findById(payload?.roomId);
+            if (!room) return;
+            if (room.status === 'WAITING') {
+              room.players = room.players.filter((p) => p.accountId !== accountId);
+              if (room.players.filter((p) => !p.isBot).length === 0) {
+                await this.deps.roomRepo.delete(room.id);
+              } else {
+                await this.deps.roomRepo.save(room);
+                this.broadcastRoomState(room);
+              }
             } else {
-              await this.deps.roomRepo.save(room);
-              this.broadcastRoomState(room);
+              const player = room.players.find((p) => p.accountId === accountId);
+              if (player) {
+                player.socketId = null;
+                player.phoneOpen = false;
+                await this.deps.roomRepo.save(room);
+                this.broadcastRoomState(room);
+              }
             }
-          } else {
-            const player = room.players.find((p) => p.accountId === accountId);
-            if (player) {
-              player.socketId = null;
-              player.phoneOpen = false;
-              await this.deps.roomRepo.save(room);
-              this.broadcastRoomState(room);
-            }
-          }
-          await socket.leave(room.id);
+            await socket.leave(room.id);
+          });
         } catch (err) {
           this.emitError(socket, 'leave_room', err);
         }
@@ -147,10 +201,10 @@ export class SocketGateway {
 
       socket.on('start_match', async (payload: { roomId: string }) => {
         try {
+          this.assertSocketRateLimit(socket);
           const accountId = this.resolveAccountId(socket);
-          const result = await this.deps.startMatchUseCase.execute(
-            payload?.roomId,
-            accountId
+          const result = await this.runSerialized(payload?.roomId, () =>
+            this.deps.startMatchUseCase.execute(payload?.roomId, accountId)
           );
           this.broadcastRoomState(result.room);
           this.dispatchDomainEvents(result.room, result.events);
@@ -163,13 +217,16 @@ export class SocketGateway {
         'place_bet',
         async (payload: { roomId: string; action: BetAction; raiseAmount?: number }) => {
           try {
+            this.assertSocketRateLimit(socket);
             const accountId = this.resolveAccountId(socket);
-            const result = await this.deps.placeBetUseCase.execute({
-              roomId: payload?.roomId,
-              accountId,
-              action: payload?.action,
-              raiseAmount: payload?.raiseAmount,
-            });
+            const result = await this.runSerialized(payload?.roomId, () =>
+              this.deps.placeBetUseCase.execute({
+                roomId: payload?.roomId,
+                accountId,
+                action: payload?.action,
+                raiseAmount: payload?.raiseAmount,
+              })
+            );
             this.broadcastRoomState(result.room);
             this.dispatchDomainEvents(result.room, result.events);
           } catch (err) {
@@ -187,14 +244,17 @@ export class SocketGateway {
           cardIndex?: 0 | 1;
         }) => {
           try {
+            this.assertSocketRateLimit(socket);
             const accountId = this.resolveAccountId(socket);
-            const result = await this.deps.triggerSkillUseCase.execute({
-              roomId: payload?.roomId,
-              accountId,
-              skillType: payload?.skillType,
-              targetAccountId: payload?.targetAccountId,
-              cardIndex: payload?.cardIndex,
-            });
+            const result = await this.runSerialized(payload?.roomId, () =>
+              this.deps.triggerSkillUseCase.execute({
+                roomId: payload?.roomId,
+                accountId,
+                skillType: payload?.skillType,
+                targetAccountId: payload?.targetAccountId,
+                cardIndex: payload?.cardIndex,
+              })
+            );
             this.broadcastRoomState(result.room);
             this.dispatchDomainEvents(result.room, result.events);
           } catch (err) {
@@ -207,12 +267,15 @@ export class SocketGateway {
         'submit_minigame',
         async (payload: { roomId: string; payload: MiniGameSubmissionPayload }) => {
           try {
+            this.assertSocketRateLimit(socket);
             const accountId = this.resolveAccountId(socket);
-            const result = await this.deps.submitMiniGameUseCase.execute({
-              roomId: payload?.roomId,
-              accountId,
-              payload: payload?.payload,
-            });
+            const result = await this.runSerialized(payload?.roomId, () =>
+              this.deps.submitMiniGameUseCase.execute({
+                roomId: payload?.roomId,
+                accountId,
+                payload: payload?.payload,
+              })
+            );
             this.broadcastRoomState(result.room);
             this.dispatchDomainEvents(result.room, result.events);
           } catch (err) {
@@ -225,12 +288,16 @@ export class SocketGateway {
         'use_item',
         async (payload: { roomId: string; itemType: ItemType }) => {
           try {
+            this.assertSocketRateLimit(socket);
             const accountId = this.resolveAccountId(socket);
-            const room = await this.deps.useItemUseCase.execute({
-              roomId: payload?.roomId,
-              accountId,
-              itemType: payload?.itemType,
-            });
+            const room = await this.runSerialized(payload?.roomId, () =>
+              this.deps.useItemUseCase.execute({
+                roomId: payload?.roomId,
+                accountId,
+                itemType: payload?.itemType,
+                action: 'USE',
+              })
+            );
             this.broadcastRoomState(room);
           } catch (err) {
             this.emitError(socket, 'use_item', err);
@@ -239,15 +306,39 @@ export class SocketGateway {
       );
 
       socket.on(
+        'discard_item',
+        async (payload: { roomId: string; itemType: ItemType }) => {
+          try {
+            this.assertSocketRateLimit(socket);
+            const accountId = this.resolveAccountId(socket);
+            const room = await this.runSerialized(payload?.roomId, () =>
+              this.deps.useItemUseCase.execute({
+                roomId: payload?.roomId,
+                accountId,
+                itemType: payload?.itemType,
+                action: 'DISCARD',
+              })
+            );
+            this.broadcastRoomState(room);
+          } catch (err) {
+            this.emitError(socket, 'discard_item', err);
+          }
+        }
+      );
+
+      socket.on(
         'take_loan',
         async (payload: { roomId: string; packageType: LoanPackage }) => {
           try {
+            this.assertSocketRateLimit(socket);
             const accountId = this.resolveAccountId(socket);
-            const room = await this.deps.takeLoanUseCase.execute({
-              roomId: payload?.roomId,
-              accountId,
-              packageType: payload?.packageType,
-            });
+            const room = await this.runSerialized(payload?.roomId, () =>
+              this.deps.takeLoanUseCase.execute({
+                roomId: payload?.roomId,
+                accountId,
+                packageType: payload?.packageType,
+              })
+            );
             this.broadcastRoomState(room);
           } catch (err) {
             this.emitError(socket, 'take_loan', err);
@@ -257,11 +348,14 @@ export class SocketGateway {
 
       socket.on('repay_loan', async (payload: { roomId: string }) => {
         try {
+          this.assertSocketRateLimit(socket);
           const accountId = this.resolveAccountId(socket);
-          const room = await this.deps.repayLoanUseCase.execute({
-            roomId: payload?.roomId,
-            accountId,
-          });
+          const room = await this.runSerialized(payload?.roomId, () =>
+            this.deps.repayLoanUseCase.execute({
+              roomId: payload?.roomId,
+              accountId,
+            })
+          );
           this.broadcastRoomState(room);
         } catch (err) {
           this.emitError(socket, 'repay_loan', err);
@@ -278,6 +372,7 @@ export class SocketGateway {
 
       socket.on('disconnect', async () => {
         try {
+          this.deps.rateLimiter.clearKey(`sock:${socket.id}`);
           const room = await this.deps.roomRepo.findBySocketId(socket.id);
           if (!room) return;
           const player = room.players.find((p) => p.socketId === socket.id);
@@ -300,6 +395,7 @@ export class SocketGateway {
     open: boolean
   ): Promise<void> {
     try {
+      this.assertSocketRateLimit(socket);
       const accountId = this.resolveAccountId(socket);
       const room = await this.deps.roomRepo.findById(roomId);
       if (!room) return;
@@ -373,6 +469,10 @@ export class SocketGateway {
           this.io.to(room.id).emit('win_streak_bonus', ev);
           break;
         }
+        case 'ARENA_BILL_EARNED': {
+          this.io.to(room.id).emit('arena_bill_earned', ev);
+          break;
+        }
         case 'PLAYER_TIMED_OUT': {
           this.io.to(room.id).emit('player_timed_out', ev);
           break;
@@ -385,12 +485,15 @@ export class SocketGateway {
     return room.players.find((p) => p.accountId === accountId)?.socketId ?? null;
   }
 
-  private resolveAccountId(socket: Socket, fallbackAccountId?: string): string {
-    const id = (socket.data.accountId as string | undefined) || fallbackAccountId;
+  /**
+   * Strictly derives account identity from server-verified socket.data.accountId.
+   * NEVER trusts client-supplied accountId fields in event payloads!
+   */
+  private resolveAccountId(socket: Socket): string {
+    const id = socket.data.accountId as string | undefined;
     if (!id) {
-      throw new Error('Not authenticated. Emit "authenticate" first.');
+      throw new Error('Chưa xác thực phiên đăng nhập. Vui lòng đăng nhập lại.');
     }
-    socket.data.accountId = id;
     return id;
   }
 

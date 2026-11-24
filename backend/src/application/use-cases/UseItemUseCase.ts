@@ -4,12 +4,14 @@ import {
   getNextIncenseViaCost,
   ITEM_CONFIG,
   ItemType,
+  MAX_TABLE_ITEMS,
 } from '../../domain/value-objects/Item';
 
 export interface UseItemInput {
   roomId: string;
   accountId: string;
   itemType: ItemType;
+  action?: 'USE' | 'DISCARD';
 }
 
 export class UseItemUseCase {
@@ -24,12 +26,36 @@ export class UseItemUseCase {
 
     const player = room.players.find((p) => p.accountId === input.accountId);
     if (!player) throw new Error('Player not found in room.');
-    if (player.eliminated || player.folded) {
-      throw new Error('Folded or eliminated players cannot use items.');
+    if (player.eliminated) {
+      throw new Error('Eliminated players cannot interact with items.');
     }
 
     if (!player.ownedItems.includes(input.itemType)) {
       throw new Error('Bạn chưa sở hữu đồ vật này! Hãy thắng mỗi 3 ván để nhận đồ ngẫu nhiên.');
+    }
+
+    // Toss item into the trash bin to free 1 of the 3 table slots
+    if (input.action === 'DISCARD') {
+      player.ownedItems = player.ownedItems.filter((it) => it !== input.itemType);
+      if (input.itemType === 'INSTANT_NOODLES') {
+        player.via = Math.min(player.via, 100);
+        player.itemsState.noodleBitesLeft = 0;
+      } else if (input.itemType === 'INCENSE_BOWL') {
+        player.itemsState.incenseSticks = 0;
+        player.itemsState.incenseHandsIdle = 0;
+      } else if (input.itemType === 'PHONE') {
+        player.phoneOpen = false;
+      }
+      appendRoomLog(
+        room,
+        `${player.displayName} đã bỏ 1 đồ vật vào thùng rác (còn ${player.ownedItems.length}/${MAX_TABLE_ITEMS} món trên bàn).`
+      );
+      await this.roomRepo.save(room);
+      return room;
+    }
+
+    if (player.folded) {
+      throw new Error('Folded players cannot use items.');
     }
 
     if (
@@ -66,19 +92,8 @@ export class UseItemUseCase {
         break;
       }
 
-      case 'LUCKY_MANGO': {
-        // 1 pure role: Shield blocking 1 Lộ Tẩy (2 uses/match)
-        if (player.itemsState.luckyMangoUsesLeft <= 0) {
-          throw new Error('Đã hết lượt dùng Quả Xoài May Mắn trong trận này.');
-        }
-        player.itemsState.luckyMangoUsesLeft -= 1;
-        player.statusEffects.mangoShield = true;
-        appendRoomLog(
-          room,
-          `🥭 ${player.displayName} ăn Quả Xoài May Mắn — bật Khiên chống Lộ Tẩy!`
-        );
-        break;
-      }
+      case 'LUCKY_MANGO':
+        throw new Error('Quả Xoài May Mắn là đồ bị động — tự động đỡ Lộ Tẩy khi trượt Mini-game (2 lần).');
 
       case 'ICED_TEA': {
         // 1 pure role: +20s turn & hand time (3 sips max, 1 sip per betting round)

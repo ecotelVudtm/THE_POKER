@@ -31,6 +31,7 @@ export interface Account {
   displayName: string;
   passwordHash?: string;
   chips: number;
+  vnd500kBills: number;
   loanBalance: number;
   ownedItems: ItemType[];
   skillInventory: SkillInventory;
@@ -51,6 +52,7 @@ export interface PublicAccount {
   username: string;
   displayName: string;
   chips: number;
+  vnd500kBills: number;
   loanBalance: number;
   ownedItems: ItemType[];
   skillInventory: SkillInventory;

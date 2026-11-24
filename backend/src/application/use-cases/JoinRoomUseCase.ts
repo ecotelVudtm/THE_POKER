@@ -5,6 +5,7 @@ import {
   createRoom,
   resolveRoomStakeTier,
   Room,
+  RoomMode,
 } from '../../domain/entities/Room';
 import { IAccountRepository } from '../../domain/repositories/IAccountRepository';
 import { IRoomRepository } from '../../domain/repositories/IRoomRepository';
@@ -19,6 +20,8 @@ export interface CreateOrJoinRoomInput {
   roomName?: string;
   accountId: string;
   socketId: string;
+  mode?: RoomMode;
+  quickArenaMatch?: boolean;
   botCount?: number;
   maxBuyIn?: number;
   smallBlind?: number;
@@ -37,8 +40,9 @@ export class JoinRoomUseCase {
       throw new Error('Account not found. Please authenticate first.');
     }
 
-    // Create a new room if roomId is not provided
+    // Create (or quick-match) a new room if roomId is not provided
     if (!input.roomId) {
+      const mode: RoomMode = input.mode === 'ARENA' ? 'ARENA' : 'STANDARD';
       const tier = resolveRoomStakeTier(input.maxBuyIn);
       if (account.chips < tier.bigBlind) {
         throw new Error(
@@ -46,14 +50,43 @@ export class JoinRoomUseCase {
         );
       }
 
+      // Quick-match: if joining Arena without a code, join an open waiting Arena room of the same stake tier if available
+      if (mode === 'ARENA' && input.quickArenaMatch) {
+        const allRooms = await this.roomRepo.findAll();
+        const openArena = allRooms.find(
+          (r) =>
+            r.mode === 'ARENA' &&
+            r.status === 'WAITING' &&
+            r.maxBuyIn === tier.maxBuyIn &&
+            r.players.length < r.maxPlayers &&
+            !r.players.some((p) => p.accountId === account.id)
+        );
+        if (openArena) {
+          return this.execute({
+            roomId: openArena.id,
+            accountId: input.accountId,
+            socketId: input.socketId,
+          });
+        }
+      }
+
       const roomId = crypto.randomBytes(3).toString('hex').toUpperCase();
+      const sanitizedRoomName = input.roomName
+        ? input.roomName.replace(/[\u0000-\u001F\u007F<>]/g, '').trim().slice(0, 48)
+        : '';
       const room = createRoom({
         id: roomId,
-        name: input.roomName?.trim() || `Sới ${tier.label} · ${account.displayName}`,
+        name:
+          sanitizedRoomName ||
+          (mode === 'ARENA'
+            ? `Đấu Trường ${tier.label} · ${account.displayName}`
+            : `Sới ${tier.label} · ${account.displayName}`),
         hostAccountId: account.id,
+        mode,
         maxBuyIn: tier.maxBuyIn,
-        smallBlind: input.smallBlind ?? tier.smallBlind,
-        bigBlind: input.bigBlind ?? tier.bigBlind,
+        // Always derive blinds authoritatively from the stake tier (never trust client-forged blinds!)
+        smallBlind: tier.smallBlind,
+        bigBlind: tier.bigBlind,
       });
 
       // Cap table chips to room.maxBuyIn; excess remains safe in Account reserve
@@ -82,7 +115,9 @@ export class JoinRoomUseCase {
       }
       room.players.push(hostPlayer);
 
-      const botsToAdd = Math.max(0, Math.min(3, Math.floor(input.botCount ?? 0)));
+      // Arena mode is strictly Real Players ONLY (0 bots!)
+      const botsToAdd =
+        mode === 'ARENA' ? 0 : Math.max(0, Math.min(3, Math.floor(input.botCount ?? 0)));
       for (let i = 0; i < botsToAdd; i++) {
         room.players.push(
           createPlayer({
@@ -92,7 +127,7 @@ export class JoinRoomUseCase {
             isBot: true,
             seatIndex: i + 1,
             chips: room.maxBuyIn,
-            ownedItems: ['ICED_TEA', 'INCENSE_BOWL'],
+            ownedItems: [],
             equippedSkin: BOT_SKINS[i % BOT_SKINS.length],
             equippedWinEffect: BOT_WIN_EFFECTS[i % BOT_WIN_EFFECTS.length],
           })
@@ -101,7 +136,9 @@ export class JoinRoomUseCase {
 
       appendRoomLog(
         room,
-        `${account.displayName} mở sới ${tier.label} (SB ${room.smallBlind.toLocaleString()} / BB ${room.bigBlind.toLocaleString()})${botsToAdd > 0 ? ` với ${botsToAdd} Bot` : ''}.`
+        mode === 'ARENA'
+          ? `${account.displayName} mở phòng Đấu Trường Thật ${tier.label} (người thật đấu chip lấy tờ 500K VNĐ).`
+          : `${account.displayName} mở sới ${tier.label} (SB ${room.smallBlind.toLocaleString()} / BB ${room.bigBlind.toLocaleString()})${botsToAdd > 0 ? ` với ${botsToAdd} Bot` : ''}.`
       );
       await this.roomRepo.save(room);
       return room;

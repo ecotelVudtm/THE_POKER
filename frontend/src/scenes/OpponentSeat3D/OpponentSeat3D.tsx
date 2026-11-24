@@ -5,12 +5,14 @@ import { SCENE_TOKENS } from '../../styles/themeTokens';
 import { PlayingCard3D } from '../PlayingCard3D';
 import { ChipStack3D } from '../ChipStack3D';
 import { VoxelAvatar3D } from '../VoxelAvatar3D';
+import { OpponentItemMesh3D } from '../TableItems3D';
 
 export interface OpponentSeat3DProps {
   player: PublicPlayerView;
   position: [number, number, number];
   cardOffset: [number, number, number];
   chipBankOffset: [number, number, number];
+  itemOffsets: [number, number, number][];
   isCurrentTurn: boolean;
   isDealer: boolean;
   phase: GamePhase;
@@ -30,6 +32,7 @@ export const OpponentSeat3D = memo(function OpponentSeat3D({
   position,
   cardOffset,
   chipBankOffset,
+  itemOffsets,
   isCurrentTurn,
   isDealer,
   phase,
@@ -92,6 +95,21 @@ export const OpponentSeat3D = memo(function OpponentSeat3D({
         />
       </group>
 
+      {/* Opponent's Owned 3D Table Items placed on dedicated collision-free felt spots */}
+      {!player.eliminated &&
+        player.ownedItems
+          .filter((it) => it !== 'PHONE')
+          .slice(0, 3)
+          .map((itemType, idx) => (
+            <OpponentItemMesh3D
+              key={itemType}
+              type={itemType}
+              itemsState={player.itemsState}
+              hasDebt={Boolean(player.activeLoan || player.statusEffects.debtPressure)}
+              position={itemOffsets[idx % itemOffsets.length]}
+            />
+          ))}
+
       {/* Opponent Hole Cards */}
       {player.holeCards.length > 0 && !player.eliminated && (
         <group position={cardOffset}>
@@ -122,19 +140,17 @@ export const OpponentSeat3D = memo(function OpponentSeat3D({
         />
       )}
 
-      {/* Clean Borderless Floating Nametag (Minecraft-style shadowed text, no clunky boxes!) */}
-      <Html position={[0, 1.56, 0]} center distanceFactor={13} style={{ pointerEvents: 'none' }}>
+      {/* Clean Borderless Floating Nametag raised cleanly above larger 1.12x avatars & hats */}
+      <Html position={[0, 1.88, 0]} center distanceFactor={12.5} style={{ pointerEvents: 'none' }}>
         <div
-          className={`flex flex-col items-center whitespace-nowrap text-center transition-opacity ${
-            dimmed ? 'opacity-50' : ''
-          }`}
+          className={`flex flex-col items-center whitespace-nowrap text-center transition-opacity ${dimmed ? 'opacity-50' : ''
+            }`}
           style={{ textShadow: '2px 2px 0 rgba(0,0,0,0.92), -1px -1px 0 rgba(0,0,0,0.75)' }}
         >
           <div className="flex items-center gap-1">
             <span
-              className={`font-mono text-xs font-extrabold ${
-                isCurrentTurn ? 'text-accent-gold' : 'text-content-primary'
-              }`}
+              className={`font-mono text-xs font-extrabold ${isCurrentTurn ? 'text-accent-gold' : 'text-content-primary'
+                }`}
             >
               {player.displayName}
             </span>

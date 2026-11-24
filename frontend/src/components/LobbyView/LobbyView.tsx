@@ -1,10 +1,16 @@
 import { FormEvent, useState } from 'react';
-import { Account, SkillType, SkinId, WinEffectId } from '../../types/game';
+import { Account, LoanPackage, SkillType, SkinId, WinEffectId } from '../../types/game';
 import { MAX_EQUIPPED_SKILLS, SKILL_CATALOG_BY_TYPE } from '../../utils/skillCatalog';
 import { soundEngine } from '../../services/soundEngine';
 import { VoxelIcon3D } from '../VoxelIcon3D';
 import { GuideBookModal } from '../GuideBookModal';
 import { SkillShopModal } from '../SkillShopModal';
+
+const LOBBY_LOAN_PACKAGES: { type: LoanPackage; label: string; amount: string }[] = [
+  { type: 'CHIPS_2000', label: 'Vay Nhanh 2K', amount: '+2,000 CHIP' },
+  { type: 'CHIPS_5000', label: 'Gói Vay 5K', amount: '+5,000 CHIP' },
+  { type: 'CHIPS_10000', label: 'Gói Vay 10K', amount: '+10,000 CHIP' },
+];
 
 const ROOM_STAKE_TIERS = [
   { maxBuyIn: 500, label: '500', smallBlind: 10, bigBlind: 20 },
@@ -22,6 +28,7 @@ export interface LobbyViewProps {
   onLogin: (username: string, password: string) => Promise<Account>;
   onRegister: (username: string, password: string, displayName?: string) => Promise<Account>;
   onLogout: () => void;
+  onTakeLoan: (packageType: LoanPackage) => Promise<void>;
   onRepayLoan: () => Promise<void>;
   onBuySkill: (skillType: SkillType, quantity?: number) => Promise<void>;
   onUpdateLoadout: (equippedSkills: SkillType[]) => Promise<void>;
@@ -32,6 +39,7 @@ export interface LobbyViewProps {
   onShopOpenChange?: (open: boolean) => void;
   onCreateBotRoom: (maxBuyIn: number) => void;
   onCreateOnlineRoom: (maxBuyIn: number) => void;
+  onEnterArena: (maxBuyIn: number) => void;
   onJoinRoom: (roomId: string) => void;
 }
 
@@ -40,6 +48,7 @@ export function LobbyView({
   onLogin,
   onRegister,
   onLogout,
+  onTakeLoan,
   onRepayLoan,
   onBuySkill,
   onUpdateLoadout,
@@ -50,6 +59,7 @@ export function LobbyView({
   onShopOpenChange,
   onCreateBotRoom,
   onCreateOnlineRoom,
+  onEnterArena,
   onJoinRoom,
 }: LobbyViewProps) {
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
@@ -60,6 +70,9 @@ export function LobbyView({
   const [joinOpen, setJoinOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [loanBusy, setLoanBusy] = useState(false);
+  const [loanError, setLoanError] = useState<string | null>(null);
   const [selectedMaxBuyIn, setSelectedMaxBuyIn] = useState<number>(10000);
 
   const activeTier =
@@ -98,80 +111,99 @@ export function LobbyView({
   };
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between bg-surface-canvas/40 p-8">
-      {/* Top Bar: Left = Player & Chips ONLY | Center = Title | Right = Guide Book */}
-      <div className="relative flex items-start justify-center">
-        {account && (
-          <div className="voxel-panel pointer-events-auto absolute left-0 top-0 flex items-center gap-3 px-3.5 py-2 text-xs">
-            <div className="flex items-center gap-2">
-              <VoxelIcon3D kind="player" size={20} title="Hồ sơ người chơi" />
-              <span className="font-mono font-extrabold text-content-primary">
-                {account.displayName}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <VoxelIcon3D kind="chip" size={20} title="Búng Chip 3D" />
-              <span className="font-mono font-extrabold text-accent-gold">
-                {account.chips.toLocaleString()} CHIP
-              </span>
-            </div>
-
-            {/* Persistent Loan Balance Column (carries outside the table!) */}
-            <div className="flex items-center gap-1.5 border-l-2 border-border-subtle pl-3">
-              <VoxelIcon3D kind="phone" size={18} title="Khoản vay hiện tại" />
-              <span
-                className={`font-mono font-extrabold ${(account.loanBalance ?? 0) > 0
-                  ? 'text-status-warning'
-                  : 'text-content-muted'
-                  }`}
-              >
-                VAY: {(account.loanBalance ?? 0).toLocaleString()}
-              </span>
-              {(account.loanBalance ?? 0) > 0 && account.chips >= account.loanBalance && (
-                <button
-                  type="button"
-                  onClick={() => void onRepayLoan()}
-                  className="voxel-btn ml-1 border border-accent-jade bg-accent-jade px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-content-inverse"
-                >
-                  TRẢ NỢ
-                </button>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="voxel-btn border border-status-danger/70 bg-surface-panel px-2 py-0.5 font-mono text-[10px] font-bold text-status-danger"
+    <div className="pointer-events-none fixed inset-0 z-20 flex flex-col justify-between bg-surface-canvas/40 px-8 py-6">
+      {/* 2-Row Clean Header: Row 1 = Borderless Player Info (Left) + 3D Opening Book (Right); Row 2 = Centered Title (zero overlap!) */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-4">
+          {account ? (
+            <div
+              className="pointer-events-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs"
+              style={{ textShadow: '2px 2px 0 rgba(0,0,0,0.92)' }}
             >
-              ĐĂNG XUẤT
-            </button>
-          </div>
-        )}
+              <div className="flex items-center gap-1.5">
+                <VoxelIcon3D kind="player" size={22} title="Hồ sơ người chơi" />
+                <span className="font-mono text-sm font-extrabold text-content-primary">
+                  {account.displayName}
+                </span>
+              </div>
 
-        <div className="text-center">
-          <h1 className="font-display text-5xl font-extrabold tracking-[0.2em] text-accent-gold drop-shadow-[4px_4px_0_rgba(0,0,0,0.85)]">
-            THE POKER
-          </h1>
-          <p className="mt-1 font-mono text-xs font-bold uppercase tracking-[0.3em] text-content-secondary">
-            Thần Bài Đời Thường
-          </p>
+              <div className="flex items-center gap-1.5">
+                <VoxelIcon3D kind="chip" size={20} title="Búng Chip 3D" />
+                <span className="font-mono text-sm font-extrabold text-accent-gold">
+                  {account.chips.toLocaleString()} CHIP
+                </span>
+              </div>
+
+              <div
+                className="flex items-center gap-1.5"
+                title="Tờ 500.000 VNĐ — Chỉ nhận được trong Chế Độ Đấu Trường Thật (PvP)"
+              >
+                <VoxelIcon3D kind="vnd500k" size={20} title="Tờ 500.000 VNĐ" />
+                <span className="font-mono text-sm font-extrabold text-accent-via">
+                  {(account.vnd500kBills ?? 0).toLocaleString()} TỜ 500K
+                </span>
+              </div>
+
+              {/* Lobby Loan Phone Trigger (borderless inline trigger) */}
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playUiClick();
+                  setLoanError(null);
+                  setPhoneOpen(true);
+                }}
+                title="Mở Điện Thoại Vay Nóng / Trả Nợ ngoài sảnh"
+                className="flex items-center gap-1.5 bg-transparent hover:brightness-125"
+              >
+                <VoxelIcon3D kind="phone" size={18} title="Điện thoại vay nóng" />
+                <span
+                  className={`font-mono text-xs font-extrabold underline decoration-dotted underline-offset-4 ${
+                    (account.loanBalance ?? 0) > 0 ? 'text-status-warning' : 'text-content-secondary'
+                  }`}
+                >
+                  {(account.loanBalance ?? 0) > 0
+                    ? `VAY: ${account.loanBalance.toLocaleString()}`
+                    : 'VAY NÓNG'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onLogout}
+                className="bg-transparent font-mono text-[11px] font-bold text-status-danger/90 hover:text-status-danger hover:underline"
+              >
+                [ĐĂNG XUẤT]
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
+
+          {/* Standalone Large 3D Voxel Guide Book: hover swings open the cover, click opens popup! */}
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            title="Sổ Tay Thần Bài"
+            aria-label="Mở Sổ Tay Thần Bài"
+            className="pointer-events-auto shrink-0 bg-transparent p-1 transition-transform hover:-translate-y-1"
+          >
+            <VoxelIcon3D kind="book" size={48} title="Sổ Tay Thần Bài" openOnHover />
+          </button>
         </div>
 
-        {/* Standalone 3D Voxel Guide Book: hover swings open the cover, click opens popup! */}
-        <button
-          type="button"
-          onClick={() => setGuideOpen(true)}
-          title="Sổ Tay Thần Bài"
-          aria-label="Mở Sổ Tay Thần Bài"
-          className="pointer-events-auto absolute right-1 top-0 bg-transparent p-1 transition-transform hover:-translate-y-1"
-        >
-          <VoxelIcon3D kind="book" size={44} title="Sổ Tay Thần Bài" openOnHover />
-        </button>
+        {/* Row 2: Cleanly Centered Title (never collided with player info!) */}
+        <div className="text-center">
+          <h1 className="font-display text-5xl font-extrabold tracking-[0.2em] text-accent-gold drop-shadow-[5px_5px_0_rgba(0,0,0,0.9)] sm:text-6xl">
+            THE POKER
+          </h1>
+          <div className="mx-auto mt-1 inline-block border-y-2 border-border-gold/55 bg-surface-canvas/70 px-4 py-0.5 font-mono text-xs font-extrabold uppercase tracking-[0.34em] text-content-secondary">
+            Thần Bài Đời Thường
+          </div>
+        </div>
       </div>
 
-      {/* Center Menu / Auth Box (100% Square Voxel UI) */}
-      <div className="pointer-events-auto mx-auto w-full max-w-sm">
+      {/* Center Menu / Auth Box (Larger, cleaner layout & better button hierarchy) */}
+      <div className="pointer-events-auto mx-auto w-full max-w-md">
         {!account ? (
           <form onSubmit={handleAuthSubmit} className="voxel-panel-gold p-6">
             <div className="mb-5 grid grid-cols-2 border-b-2 border-border-subtle">
@@ -254,19 +286,21 @@ export function LobbyView({
             </div>
           </form>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3.5">
             {/* Room Stake Tier Selector (500 -> 1TR, proportional SB/BB) */}
-            <div className="voxel-panel-gold p-3">
-              <div className="mb-2 flex items-center justify-between font-mono text-[10px]">
+            <div className="voxel-panel-gold relative p-4">
+              <span className="pointer-events-none absolute left-1.5 top-1.5 h-1.5 w-1.5 bg-accent-gold" />
+              <span className="pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 bg-accent-gold" />
+              <div className="mb-2.5 flex items-center justify-between font-mono text-[11px]">
                 <span className="font-extrabold tracking-wider text-accent-gold">
                   MỨC SỚI (MANG TỐI ĐA)
                 </span>
-                <span className="font-bold text-content-secondary">
+                <span className="border border-border-subtle bg-surface-panel px-2 py-0.5 font-extrabold text-content-primary">
                   SB {activeTier.smallBlind.toLocaleString()} / BB{' '}
                   {activeTier.bigBlind.toLocaleString()}
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-4 gap-2">
                 {ROOM_STAKE_TIERS.map((tier) => {
                   const isSelected = selectedMaxBuyIn === tier.maxBuyIn;
                   const canEnter = account.chips >= tier.bigBlind;
@@ -279,7 +313,7 @@ export function LobbyView({
                         soundEngine.playUiClick();
                         setSelectedMaxBuyIn(tier.maxBuyIn);
                       }}
-                      className={`voxel-btn border py-1.5 font-mono text-[11px] font-extrabold transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                      className={`voxel-btn border-2 py-2 font-mono text-xs font-extrabold transition disabled:cursor-not-allowed disabled:opacity-35 ${
                         isSelected
                           ? 'border-border-gold bg-accent-gold text-content-inverse'
                           : 'border-border-subtle bg-surface-canvas text-content-primary hover:border-border-gold hover:text-accent-gold'
@@ -292,30 +326,54 @@ export function LobbyView({
               </div>
             </div>
 
+            {/* Primary CTA */}
             <button
               type="button"
               onClick={() => onCreateBotRoom(activeTier.maxBuyIn)}
-              className="voxel-btn w-full border-2 border-border-gold bg-accent-gold py-3.5 font-mono text-sm font-extrabold tracking-widest text-content-inverse"
+              className="voxel-btn w-full border-2 border-border-gold bg-accent-gold py-4 font-mono text-base font-extrabold tracking-widest text-content-inverse"
             >
               CHƠI NGAY VỚI 3 BOT ({activeTier.label})
             </button>
 
+            {/* Real PvP Arena Mode (Earn 500,000 VND Polymer Bills!) */}
             <button
               type="button"
-              onClick={() => onCreateOnlineRoom(activeTier.maxBuyIn)}
-              className="voxel-btn w-full border-2 border-border-gold bg-surface-panel py-3 font-mono text-xs font-extrabold tracking-widest text-accent-gold"
+              onClick={() => {
+                soundEngine.playUiClick();
+                onEnterArena(activeTier.maxBuyIn);
+              }}
+              className="voxel-btn flex w-full flex-col items-center border-2 border-border-gold bg-surface-elevated px-4 py-3 text-center"
             >
-              TẠO BÀN ONLINE ({activeTier.label})
+              <span className="flex items-center gap-2 font-mono text-sm font-extrabold tracking-widest text-accent-gold">
+                <VoxelIcon3D kind="vnd500k" size={20} title="Tờ 500.000 VNĐ" />
+                ĐẤU TRƯỜNG THẬT · PvP ({activeTier.label})
+              </span>
+              <span className="mt-0.5 font-mono text-[10px] font-bold text-content-secondary">
+                Chỉ người thật · Cứ lãi đủ +{activeTier.label} chip nhận +1 tờ 500.000 VNĐ
+              </span>
             </button>
 
+            {/* Secondary Multiplayer Row (2 clean side-by-side buttons) */}
             {!joinOpen ? (
-              <button
-                type="button"
-                onClick={() => setJoinOpen(true)}
-                className="voxel-btn w-full border-2 border-border-subtle bg-surface-canvas/90 py-3 font-mono text-xs font-bold tracking-widest text-content-primary"
-              >
-                VÀO BÀN BẰNG MÃ
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => onCreateOnlineRoom(activeTier.maxBuyIn)}
+                  className="voxel-btn border-2 border-border-gold bg-surface-panel py-3.5 font-mono text-xs font-extrabold tracking-wider text-accent-gold"
+                >
+                  TẠO BÀN ONLINE ({activeTier.label})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playUiClick();
+                    setJoinOpen(true);
+                  }}
+                  className="voxel-btn border-2 border-border-gold/75 bg-surface-panel py-3.5 font-mono text-xs font-extrabold tracking-wider text-content-primary hover:border-border-gold hover:text-accent-gold"
+                >
+                  VÀO BÀN BẰNG MÃ
+                </button>
+              </div>
             ) : (
               <form onSubmit={handleJoinSubmit} className="flex gap-2">
                 <input
@@ -323,36 +381,48 @@ export function LobbyView({
                   autoFocus
                   value={roomCode}
                   onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                  placeholder="MÃ PHÒNG"
+                  placeholder="NHẬP MÃ PHÒNG..."
                   maxLength={8}
-                  className="voxel-input flex-1 px-3 py-2.5 font-mono text-sm uppercase tracking-widest text-content-primary"
+                  className="voxel-input flex-1 px-3.5 py-3 font-mono text-sm font-bold uppercase tracking-widest text-content-primary"
                 />
                 <button
                   type="submit"
-                  className="voxel-btn border-2 border-accent-jade bg-accent-jade px-5 font-mono text-xs font-extrabold tracking-wider text-content-inverse"
+                  className="voxel-btn border-2 border-accent-jade bg-accent-jade px-6 font-mono text-xs font-extrabold tracking-wider text-content-inverse"
                 >
                   VÀO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJoinOpen(false)}
+                  className="voxel-btn border-2 border-border-subtle bg-surface-panel px-3 font-mono text-xs font-extrabold text-content-secondary"
+                >
+                  HỦY
                 </button>
               </form>
             )}
 
+            {/* Unified Shop & Loadout Button */}
             <button
               type="button"
-              onClick={() => toggleShop(true)}
-              className="voxel-btn flex w-full items-center justify-center gap-2 border-2 border-border-gold bg-surface-panel py-3 font-mono text-xs font-extrabold tracking-widest text-accent-gold"
+              onClick={() => {
+                soundEngine.playUiClick();
+                toggleShop(true);
+              }}
+              className="voxel-btn flex w-full items-center justify-center gap-2.5 border-2 border-border-gold bg-surface-panel py-3.5 font-mono text-xs font-extrabold tracking-widest text-accent-gold"
             >
+              <VoxelIcon3D kind="chip" size={18} />
               <span>CỬA HÀNG &amp; TRANG BỊ</span>
-              <span className="border border-border-gold/60 bg-surface-canvas px-1.5 py-0.5 text-[10px] text-accent-gold">
-                {(account.equippedSkills ?? []).length}/{MAX_EQUIPPED_SKILLS}
+              <span className="border border-border-gold/70 bg-surface-canvas px-2 py-0.5 text-[10px] text-accent-gold">
+                {(account.equippedSkills ?? []).length}/{MAX_EQUIPPED_SKILLS} LÁ PHÉP
               </span>
             </button>
 
             {(account.equippedSkills ?? []).length > 0 && (
-              <div className="flex flex-wrap justify-center gap-1.5 font-mono text-[10px]">
+              <div className="flex flex-wrap justify-center gap-1.5 font-mono text-[11px]">
                 {account.equippedSkills.map((sk) => (
                   <span
                     key={sk}
-                    className="border border-border-gold/50 bg-surface-canvas/85 px-2 py-0.5 font-bold text-content-secondary"
+                    className="border border-border-gold/55 bg-surface-canvas/90 px-2.5 py-0.5 font-bold text-content-secondary"
                   >
                     {SKILL_CATALOG_BY_TYPE[sk]?.title ?? sk} (x{account.skillInventory?.[sk] ?? 0})
                   </span>
@@ -369,6 +439,102 @@ export function LobbyView({
       </div>
 
       <GuideBookModal open={guideOpen} onClose={() => setGuideOpen(false)} />
+
+      {account && phoneOpen && (
+        <div
+          onClick={() => setPhoneOpen(false)}
+          className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-surface-canvas/80 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="voxel-panel-gold w-full max-w-sm p-5"
+          >
+            <div className="flex items-center justify-between border-b-2 border-border-subtle pb-3">
+              <div className="flex items-center gap-2.5">
+                <VoxelIcon3D kind="phone" size={22} />
+                <div>
+                  <h3 className="font-display text-sm font-extrabold tracking-widest text-accent-gold">
+                    ĐIỆN THOẠI VAY NÓNG
+                  </h3>
+                  <div className="font-mono text-[10px] text-content-muted">
+                    Hạn mức tối đa 50,000 Chip · Lưu vĩnh viễn ngoài sảnh
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhoneOpen(false)}
+                className="font-mono text-xs font-extrabold text-content-muted hover:text-accent-gold"
+              >
+                [X]
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between border border-border-subtle bg-surface-panel px-3 py-2 font-mono text-xs">
+              <span className="text-content-secondary">KHOẢN NỢ HIỆN TẠI:</span>
+              <span
+                className={`font-extrabold ${
+                  (account.loanBalance ?? 0) > 0 ? 'text-status-warning' : 'text-accent-jade'
+                }`}
+              >
+                {(account.loanBalance ?? 0).toLocaleString()} CHIP
+              </span>
+            </div>
+
+            {loanError && (
+              <div className="mt-2 font-mono text-[11px] font-bold text-status-danger">
+                {loanError}
+              </div>
+            )}
+
+            <div className="mt-3 space-y-2">
+              {LOBBY_LOAN_PACKAGES.map((pkg) => (
+                <button
+                  key={pkg.type}
+                  type="button"
+                  disabled={loanBusy}
+                  onClick={async () => {
+                    setLoanBusy(true);
+                    setLoanError(null);
+                    try {
+                      await onTakeLoan(pkg.type);
+                    } catch (err) {
+                      setLoanError(err instanceof Error ? err.message : 'Vay thất bại.');
+                    } finally {
+                      setLoanBusy(false);
+                    }
+                  }}
+                  className="voxel-btn flex w-full items-center justify-between border-2 border-border-gold bg-surface-panel px-3.5 py-2.5 font-mono text-xs font-extrabold text-content-primary hover:bg-surface-elevated disabled:opacity-40"
+                >
+                  <span>{pkg.label}</span>
+                  <span className="text-accent-gold">{pkg.amount}</span>
+                </button>
+              ))}
+            </div>
+
+            {(account.loanBalance ?? 0) > 0 && (
+              <button
+                type="button"
+                disabled={loanBusy || account.chips < account.loanBalance}
+                onClick={async () => {
+                  setLoanBusy(true);
+                  setLoanError(null);
+                  try {
+                    await onRepayLoan();
+                  } catch (err) {
+                    setLoanError(err instanceof Error ? err.message : 'Trả nợ thất bại.');
+                  } finally {
+                    setLoanBusy(false);
+                  }
+                }}
+                className="voxel-btn mt-3 w-full border-2 border-accent-jade bg-accent-jade py-2.5 font-mono text-xs font-extrabold tracking-widest text-content-inverse disabled:opacity-40"
+              >
+                TRẢ HẾT NỢ ({account.loanBalance.toLocaleString()} CHIP)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {account && (
         <SkillShopModal

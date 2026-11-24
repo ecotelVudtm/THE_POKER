@@ -17,7 +17,8 @@ export type VoxelIconKind =
   | 'mango'
   | 'tea'
   | 'coin'
-  | 'noodles';
+  | 'noodles'
+  | 'vnd500k';
 
 export interface VoxelIcon3DProps {
   kind: VoxelIconKind;
@@ -763,6 +764,30 @@ export function VoxelIcon3D({
               frontCls="bg-surface-wood"
               sideCls="bg-surface-wood"
               topCls="bg-accent-amber"
+            />
+          </>
+        );
+
+      case 'vnd500k':
+        // Low-res 3D Vietnamese 500,000 VND blue-teal polymer banknote
+        return (
+          <>
+            <VoxelBox3D
+              w={24}
+              h={13}
+              d={3.5}
+              frontCls="border border-content-primary bg-accent-via"
+              sideCls="bg-accent-via"
+              topCls="bg-content-primary"
+              frontContent={
+                <div className="flex h-full w-full items-center justify-between px-[2px]">
+                  <div className="h-[7px] w-[4px] bg-content-primary/60" />
+                  <span className="font-mono text-[6px] font-extrabold leading-none text-content-inverse">
+                    500K
+                  </span>
+                  <div className="h-[9px] w-[5px] bg-content-secondary" />
+                </div>
+              }
             />
           </>
         );

@@ -30,31 +30,48 @@ function verifyPassword(password: string, storedHash: string): boolean {
   return crypto.timingSafeEqual(derived, keyBuf);
 }
 
+const USERNAME_REGEX = /^[a-z0-9_.-]{2,32}$/;
+
+function sanitizeDisplayName(raw: string, fallback: string): string {
+  const cleaned = raw
+    .replace(/[\u0000-\u001F\u007F<>]/g, '')
+    .trim()
+    .slice(0, 32);
+  return cleaned || fallback;
+}
+
 export class AuthenticateAccountUseCase {
   constructor(private readonly accountRepo: IAccountRepository) {}
 
   public async execute(input: AuthenticateAccountInput): Promise<Account> {
+    if (typeof input.username !== 'string') {
+      throw new Error('Tên đăng nhập không hợp lệ.');
+    }
     const normalizedUsername = input.username.trim().toLowerCase();
-    if (!normalizedUsername || normalizedUsername.length < 2 || normalizedUsername.length > 32) {
-      throw new Error('Tên đăng nhập phải từ 2 đến 32 ký tự.');
+    if (!USERNAME_REGEX.test(normalizedUsername)) {
+      throw new Error('Tên đăng nhập 2–32 ký tự, chỉ gồm chữ thường, số và _, ., -.');
     }
 
-    const mode = input.mode ?? 'quick';
+    const mode = input.mode ?? 'login';
     const existing = await this.accountRepo.findByUsername(normalizedUsername);
 
     if (mode === 'register') {
       if (existing) {
         throw new Error('Tên đăng nhập này đã tồn tại.');
       }
-      if (!input.password || input.password.length < 4) {
-        throw new Error('Mật khẩu phải có ít nhất 4 ký tự.');
+      if (!input.password || input.password.length < 4 || input.password.length > 128) {
+        throw new Error('Mật khẩu phải từ 4 đến 128 ký tự.');
       }
-      const displayName = (input.displayName?.trim() || input.username.trim()).slice(0, 32);
+      const displayName = sanitizeDisplayName(
+        input.displayName ?? input.username,
+        normalizedUsername
+      );
       return this.accountRepo.create({
         username: normalizedUsername,
         displayName,
         passwordHash: hashPassword(input.password),
         chips: DEFAULT_STARTING_CHIPS,
+        vnd500kBills: 0,
         loanBalance: 0,
         ownedItems: [],
         skillInventory: createDefaultSkillInventory(),
@@ -75,35 +92,47 @@ export class AuthenticateAccountUseCase {
 
     if (mode === 'login') {
       if (!existing) {
-        throw new Error('Tài khoản không tồn tại. Hãy chuyển sang tab Đăng ký.');
+        throw new Error('Sai tên đăng nhập hoặc mật khẩu.');
       }
-      if (!input.password) {
-        throw new Error('Vui lòng nhập mật khẩu.');
+      if (!input.password || input.password.length > 128) {
+        throw new Error('Vui lòng nhập mật khẩu hợp lệ.');
       }
-      if (existing.passwordHash && !verifyPassword(input.password, existing.passwordHash)) {
-        throw new Error('Sai mật khẩu.');
-      }
-      return existing;
-    }
-
-    // Backward-compatible quick/socket auth
-    if (existing) {
-      if (
-        input.displayName &&
-        input.displayName.trim() &&
-        input.displayName.trim() !== existing.displayName
-      ) {
-        existing.displayName = input.displayName.trim().slice(0, 32);
+      if (!existing.passwordHash) {
+        // Legacy passwordless account: set password on first login only if length >= 4
+        if (input.password.length < 4) {
+          throw new Error('Mật khẩu phải có ít nhất 4 ký tự.');
+        }
+        existing.passwordHash = hashPassword(input.password);
         return this.accountRepo.update(existing);
       }
+      if (!verifyPassword(input.password, existing.passwordHash)) {
+        throw new Error('Sai tên đăng nhập hoặc mật khẩu.');
+      }
       return existing;
     }
 
-    const displayName = (input.displayName?.trim() || input.username.trim()).slice(0, 32);
+    // Legacy quick mode: NEVER allow bypassing password on protected accounts!
+    if (existing) {
+      if (existing.passwordHash) {
+        throw new Error('Tài khoản này yêu cầu đăng nhập bằng mật khẩu.');
+      }
+      return existing;
+    }
+
+    if (!input.password || input.password.length < 4 || input.password.length > 128) {
+      throw new Error('Tạo tài khoản mới yêu cầu mật khẩu từ 4 ký tự trở lên.');
+    }
+
+    const displayName = sanitizeDisplayName(
+      input.displayName ?? input.username,
+      normalizedUsername
+    );
     return this.accountRepo.create({
       username: normalizedUsername,
       displayName,
+      passwordHash: hashPassword(input.password),
       chips: DEFAULT_STARTING_CHIPS,
+      vnd500kBills: 0,
       loanBalance: 0,
       ownedItems: [],
       skillInventory: createDefaultSkillInventory(),

@@ -13,8 +13,8 @@ function formatMMSS(totalSeconds: number): string {
 }
 
 /**
- * Physical Voxel Desk / Chess Clock sitting at the player's left corner (NOT a plain text box!).
- * Features a top plunger button, wooden casing, digital LED dial, and rotating second hand indicator.
+ * High-detail Physical Voxel Wooden Chess Clock with brass rivets, top plunger,
+ * pixel analog dial, bold recessed LED timer & segmented 20s turn gauge.
  */
 export function TimeBankWidget({
   timeBankSeconds,
@@ -24,7 +24,6 @@ export function TimeBankWidget({
 }: TimeBankWidgetProps) {
   const isCritical = timeBankSeconds < 45;
   const turnPct = Math.max(0, Math.min(100, (turnRemainingSeconds / 20) * 100));
-  // Rotating pixel clock hand angle based on remaining seconds
   const handAngle = ((60 - (timeBankSeconds % 60)) % 60) * 6;
 
   return (
@@ -33,57 +32,59 @@ export function TimeBankWidget({
         isCritical ? 'animate-heartbeat' : ''
       }`}
     >
-      {/* Top Chess-Clock Plunger Button (depressed when running!) */}
-      <div className="ml-4 flex items-end gap-2">
+      {/* Top Chess-Clock Brass Plunger + Status Plate */}
+      <div className="ml-4 flex items-end gap-2.5">
         <div
-          className={`w-10 border-x-2 border-t-2 border-border-gold transition-all ${
-            clockRunning
-              ? 'h-1.5 bg-status-warning'
-              : 'h-3 bg-accent-gold'
+          className={`w-12 border-x-2 border-t-2 border-border-gold transition-all ${
+            clockRunning ? 'h-2 bg-status-warning' : 'h-3.5 bg-accent-gold'
           }`}
         />
-        <span className="pb-0.5 font-mono text-[9px] font-extrabold tracking-widest text-content-muted">
+        <span className="border-x border-t border-border-subtle bg-surface-canvas/90 px-2 py-0.5 font-mono text-[10px] font-extrabold tracking-widest text-content-secondary">
           {isMyTurn ? `LƯỢT ${turnRemainingSeconds}S` : clockRunning ? 'ĐANG CHẠY' : 'ĐỒNG HỒ'}
         </span>
       </div>
 
-      {/* Physical Wooden Voxel Clock Body */}
+      {/* Carved Wooden Voxel Clock Casing with 4 Brass Corner Rivets */}
       <div
-        className={`flex items-center gap-3 border-2 px-3 py-2 shadow-[4px_4px_0_rgba(0,0,0,0.75)] ${
+        className={`relative flex items-center gap-3.5 border-2 px-4 py-2.5 shadow-[5px_5px_0_rgba(0,0,0,0.82)] ${
           isCritical
             ? 'border-status-danger bg-status-danger/25'
             : isMyTurn
               ? 'border-border-gold bg-surface-wood'
-              : 'border-border-subtle bg-surface-wood/90'
+              : 'border-border-subtle bg-surface-wood/95'
         }`}
       >
-        {/* Mini Pixel Analog Dial */}
-        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center border-2 border-border-gold bg-surface-canvas">
-          {/* 12/3/6/9 pixel ticks */}
-          <span className="absolute top-0.5 h-1 w-0.5 bg-accent-gold" />
-          <span className="absolute bottom-0.5 h-1 w-0.5 bg-accent-gold" />
-          <span className="absolute left-0.5 h-0.5 w-1 bg-accent-gold" />
-          <span className="absolute right-0.5 h-0.5 w-1 bg-accent-gold" />
-          {/* Ticking hand */}
+        {/* 4 Brass Corner Pixel Rivets */}
+        <span className="absolute left-1 top-1 h-1.5 w-1.5 bg-accent-gold" />
+        <span className="absolute right-1 top-1 h-1.5 w-1.5 bg-accent-gold" />
+        <span className="absolute bottom-1 left-1 h-1.5 w-1.5 bg-accent-gold" />
+        <span className="absolute bottom-1 right-1 h-1.5 w-1.5 bg-accent-gold" />
+
+        {/* Larger Pixel Analog Dial */}
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center border-2 border-border-gold bg-surface-canvas shadow-[inset_2px_2px_0_rgba(0,0,0,0.7)]">
+          <span className="absolute top-0.5 h-1.5 w-0.5 bg-accent-gold" />
+          <span className="absolute bottom-0.5 h-1.5 w-0.5 bg-accent-gold" />
+          <span className="absolute left-0.5 h-0.5 w-1.5 bg-accent-gold" />
+          <span className="absolute right-0.5 h-0.5 w-1.5 bg-accent-gold" />
           <div
-            className={`absolute bottom-1/2 left-1/2 h-3.5 w-0.5 origin-bottom -translate-x-1/2 ${
+            className={`absolute bottom-1/2 left-1/2 h-4 w-0.5 origin-bottom -translate-x-1/2 ${
               isCritical ? 'bg-status-danger' : 'bg-accent-gold'
             }`}
             style={{ transform: `translateX(-50%) rotate(${handAngle}deg)` }}
           />
-          <span className="h-1.5 w-1.5 bg-content-primary" />
+          <span className="z-10 h-2 w-2 bg-content-primary" />
         </div>
 
-        {/* Recessed LED Time Readout + 20s Turn Bar */}
-        <div className="border-2 border-surface-canvas bg-surface-canvas/95 px-2.5 py-1">
+        {/* Bold Recessed LED Readout + 20s Turn Bar */}
+        <div className="border-2 border-surface-canvas bg-surface-canvas px-3 py-1.5 shadow-[inset_2px_2px_0_rgba(0,0,0,0.85)]">
           <div
-            className={`font-mono text-xl font-extrabold leading-none tracking-wider ${
+            className={`font-mono text-2xl font-extrabold leading-none tracking-wider ${
               isCritical ? 'text-status-danger' : 'text-content-primary'
             }`}
           >
             {formatMMSS(timeBankSeconds)}
           </div>
-          <div className="mt-1.5 h-1.5 w-20 bg-surface-elevated">
+          <div className="mt-2 h-2 w-24 border border-border-subtle bg-surface-elevated">
             <div
               className={`h-full transition-all duration-500 ${
                 turnRemainingSeconds <= 5
@@ -98,10 +99,10 @@ export function TimeBankWidget({
         </div>
       </div>
 
-      {/* Tiny Wooden Clock Feet */}
-      <div className="flex w-full justify-between px-3">
-        <div className="h-1.5 w-4 bg-surface-canvas" />
-        <div className="h-1.5 w-4 bg-surface-canvas" />
+      {/* Carved Wooden Clock Feet */}
+      <div className="flex w-full justify-between px-4">
+        <div className="h-2 w-5 border-x border-b border-border-subtle bg-surface-canvas" />
+        <div className="h-2 w-5 border-x border-b border-border-subtle bg-surface-canvas" />
       </div>
     </div>
   );

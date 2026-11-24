@@ -32,10 +32,12 @@ export function App() {
     triggerSkill,
     submitMiniGame,
     useItem,
+    discardItem,
     openPhone,
     closePhone,
     takeLoan,
     repayLoan,
+    takeLobbyLoan,
     repayLobbyLoan,
     buySkill,
     updateLoadout,
@@ -56,6 +58,7 @@ export function App() {
           room={room}
           me={me}
           onUseItem={useItem}
+          onDiscardItem={discardItem}
           idleShowcase={!inMatch}
           paused={!inMatch && shopOpen}
         />
@@ -67,6 +70,7 @@ export function App() {
           onLogin={login}
           onRegister={register}
           onLogout={logout}
+          onTakeLoan={takeLobbyLoan}
           onRepayLoan={repayLobbyLoan}
           onBuySkill={buySkill}
           onUpdateLoadout={updateLoadout}
@@ -77,6 +81,9 @@ export function App() {
           onShopOpenChange={setShopOpen}
           onCreateBotRoom={(maxBuyIn) => createRoom({ botCount: 3, maxBuyIn })}
           onCreateOnlineRoom={(maxBuyIn) => createRoom({ botCount: 0, maxBuyIn })}
+          onEnterArena={(maxBuyIn) =>
+            createRoom({ mode: 'ARENA', quickArenaMatch: true, botCount: 0, maxBuyIn })
+          }
           onJoinRoom={joinRoom}
         />
       ) : (

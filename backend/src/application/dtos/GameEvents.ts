@@ -65,6 +65,14 @@ export type GameDomainEvent =
       viaBonus: number;
     }
   | {
+      type: 'ARENA_BILL_EARNED';
+      roomId: string;
+      accountId: string;
+      displayName: string;
+      billsEarned: number;
+      totalBillsInMatch: number;
+    }
+  | {
       type: 'PLAYER_TIMED_OUT';
       roomId: string;
       accountId: string;
