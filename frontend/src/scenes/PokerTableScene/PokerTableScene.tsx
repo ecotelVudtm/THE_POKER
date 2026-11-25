@@ -150,72 +150,78 @@ const OPPONENT_SLOTS: {
   pos: [number, number, number];
   cardOffset: [number, number, number];
   chipBankOffset: [number, number, number];
+  betSpot: [number, number, number];
   itemOffsets: [number, number, number][];
 }[] = [
   {
-    pos: [-5.75, 0, -0.35],
-    cardOffset: [1.35, 0.04, 0.2],
-    chipBankOffset: [1.35, 0.068, 1.35],
+    pos: [-7.18, 0, -0.35],
+    cardOffset: [2.78, 0.04, 0.2],
+    chipBankOffset: [2.78, 0.068, 1.35],
+    betSpot: [-3.2, 0.068, 0.03],
     itemOffsets: [
-      [1.15, 0.07, -1.0],
-      [1.95, 0.07, -1.0],
-      [2.15, 0.07, 1.35],
+      [2.58, 0.07, -1.0],
+      [3.38, 0.07, -1.0],
+      [3.58, 0.07, 1.35],
     ],
   },
   {
-    pos: [-3.0, 0, -3.95],
-    cardOffset: [0.5, 0.04, 1.35],
-    chipBankOffset: [-0.85, 0.068, 1.35],
+    pos: [-3.15, 0, -4.85],
+    cardOffset: [0.65, 0.04, 2.25],
+    chipBankOffset: [-0.7, 0.068, 2.25],
+    betSpot: [-2.05, 0.068, -1.38],
     itemOffsets: [
-      [-1.55, 0.07, 1.35],
-      [-0.85, 0.07, 2.15],
-      [0.0, 0.07, 2.2],
+      [-1.4, 0.07, 2.25],
+      [-0.7, 0.07, 3.05],
+      [0.15, 0.07, 3.1],
     ],
   },
   {
-    pos: [0, 0, -4.35],
-    cardOffset: [0, 0.04, 1.4],
-    chipBankOffset: [1.35, 0.068, 1.35],
+    pos: [0, 0, -4.92],
+    cardOffset: [0, 0.04, 1.97],
+    chipBankOffset: [1.35, 0.068, 1.92],
+    betSpot: [0, 0.068, -1.69],
     itemOffsets: [
-      [-1.2, 0.07, 1.4],
-      [-1.95, 0.07, 1.4],
-      [2.15, 0.07, 1.4],
+      [-1.2, 0.07, 1.97],
+      [-1.95, 0.07, 1.97],
+      [2.15, 0.07, 1.97],
     ],
   },
   {
-    pos: [3.0, 0, -3.95],
-    cardOffset: [-0.5, 0.04, 1.35],
-    chipBankOffset: [0.85, 0.068, 1.35],
+    pos: [3.15, 0, -4.85],
+    cardOffset: [-0.65, 0.04, 2.25],
+    chipBankOffset: [0.7, 0.068, 2.25],
+    betSpot: [2.05, 0.068, -1.38],
     itemOffsets: [
-      [1.55, 0.07, 1.35],
-      [0.85, 0.07, 2.15],
-      [0.0, 0.07, 2.2],
+      [1.4, 0.07, 2.25],
+      [0.7, 0.07, 3.05],
+      [-0.15, 0.07, 3.1],
     ],
   },
   {
-    pos: [5.75, 0, -0.35],
-    cardOffset: [-1.35, 0.04, 0.2],
-    chipBankOffset: [-1.35, 0.068, 1.35],
+    pos: [7.18, 0, -0.35],
+    cardOffset: [-2.78, 0.04, 0.2],
+    chipBankOffset: [-2.78, 0.068, 1.35],
+    betSpot: [3.2, 0.068, 0.03],
     itemOffsets: [
-      [-1.15, 0.07, -1.0],
-      [-1.95, 0.07, -1.0],
-      [-2.15, 0.07, 1.35],
+      [-2.58, 0.07, -1.0],
+      [-3.38, 0.07, -1.0],
+      [-3.58, 0.07, 1.35],
     ],
   },
 ];
 
 function CameraRig({ idleShowcase }: { idleShowcase?: boolean }) {
-  const targetPos = useRef(new THREE.Vector3(0, 7.1, 8.35));
+  const targetPos = useRef(new THREE.Vector3(0, 7.75, 9.45));
   useFrame(({ camera, clock }, delta) => {
     if (idleShowcase) {
       const t = clock.getElapsedTime() * 0.14;
-      camera.position.set(Math.sin(t) * 2.1, 8.2, 9.6 + Math.cos(t) * 0.5);
-      camera.lookAt(0, 0.1, 0.35);
+      camera.position.set(Math.sin(t) * 2.1, 8.6, 10.2 + Math.cos(t) * 0.5);
+      camera.lookAt(0, 0.1, 0.25);
     } else {
-      // Closer, richer seated perspective so cards, avatars, chips & table items look large and crisp!
-      targetPos.current.set(0, 7.1, 8.35);
+      // Framed cleanly so the table AND all 5 players seated on chairs around the table stay comfortably in view!
+      targetPos.current.set(0, 7.75, 9.45);
       camera.position.lerp(targetPos.current, Math.min(1, delta * 5));
-      camera.lookAt(0, 0.05, 0.5);
+      camera.lookAt(0, 0.05, 0.25);
     }
   });
   return null;
@@ -431,23 +437,23 @@ export function PokerTableScene({
     }));
   }, [me?.accountId, room]);
 
-  // Map every player's seat origin & front bet spot for flying chip trajectories
+  // Map every player's real 3D chip bank stack & front bet spot for smooth natural chip trajectories
   const seatMap = useMemo<SeatPositionMap>(() => {
     const map: SeatPositionMap = {};
     if (me) {
       map[me.accountId] = {
-        origin: [0, 0.35, 3.8],
+        origin: [-2.05, 0.22, 2.42],
         betSpot: [0, 0.068, 1.95],
       };
     }
     for (const { player, slot } of opponents) {
       map[player.accountId] = {
-        origin: [slot.pos[0], 0.35, slot.pos[2]],
-        betSpot: [
-          slot.pos[0] + slot.cardOffset[0] * 1.9,
-          0.068,
-          slot.pos[2] + slot.cardOffset[2] * 1.9,
+        origin: [
+          slot.pos[0] + slot.chipBankOffset[0],
+          0.22,
+          slot.pos[2] + slot.chipBankOffset[2],
         ],
+        betSpot: slot.betSpot,
       };
     }
     return map;

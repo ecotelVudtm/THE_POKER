@@ -227,9 +227,14 @@ export function SkillShopModal({
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`flex h-14 w-14 shrink-0 items-center justify-center border-2 ${skill.innerFrameCls}`}
+                            className={`h-16 w-16 shrink-0 overflow-hidden border-2 ${skill.innerFrameCls}`}
                           >
-                            <VoxelIcon3D kind={skill.iconKind} size={28} title={skill.fullName} />
+                            <img
+                              src={skill.artImage}
+                              alt={skill.fullName}
+                              draggable={false}
+                              className="h-full w-full object-cover"
+                            />
                           </div>
                           <div>
                             <div className={`font-display text-base font-extrabold ${skill.titleCls}`}>
@@ -334,9 +339,9 @@ export function SkillShopModal({
               </span>
             </div>
 
-            {/* Tall 3D Canvas — properly framed from pedestal to top hat & flying doves! */}
+            {/* Tall 3D Canvas — properly framed full-body standing character from shoes on podium to top hat & flying doves! */}
             <div className="min-h-[340px] flex-1">
-              <Canvas camera={{ position: [0, 1.55, 3.85], fov: 36 }}>
+              <Canvas camera={{ position: [0, 1.9, 4.65], fov: 38 }}>
                 <color attach="background" args={[SCENE_TOKENS.environment.backdrop]} />
                 <ambientLight intensity={0.9} color={SCENE_TOKENS.environment.ambientWarm} />
                 <hemisphereLight
@@ -353,10 +358,10 @@ export function SkillShopModal({
                   color={SCENE_TOKENS.environment.rimWarm}
                 />
                 <OrbitControls
-                  target={[0, 1.05, 0]}
+                  target={[0, 1.25, 0]}
                   enablePan={false}
-                  minDistance={2.6}
-                  maxDistance={5.5}
+                  minDistance={3.0}
+                  maxDistance={6.2}
                   minPolarAngle={0.6}
                   maxPolarAngle={1.65}
                 />
@@ -374,7 +379,9 @@ export function SkillShopModal({
                       roughness={0.35}
                     />
                   </mesh>
-                  <VoxelAvatar3D skinId={previewSkin} seatIndex={0} turntable />
+                  <group position={[0, 0.185, 0]}>
+                    <VoxelAvatar3D skinId={previewSkin} seatIndex={0} turntable pose="standing" />
+                  </group>
                 </group>
               </Canvas>
             </div>

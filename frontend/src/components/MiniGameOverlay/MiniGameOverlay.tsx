@@ -7,6 +7,7 @@ import {
 import { TimingBarMiniGame } from '../TimingBarMiniGame';
 import { BalanceCircleMiniGame } from '../BalanceCircleMiniGame';
 import { RhythmTapMiniGame } from '../RhythmTapMiniGame';
+import { CardLabel } from '../PixelSuitIcon';
 
 export interface MiniGameOverlayProps {
   challenge: MiniGameChallenge | null;
@@ -92,10 +93,10 @@ export function MiniGameOverlay({
             <div className="font-mono text-[10px] font-bold text-accent-via">
               TÂM NHÃN · CHỈ MÌNH BẠN THẤY (4S)
             </div>
-            <div className="mt-1 font-mono text-sm font-extrabold text-content-primary">
-              LÁ SẮP LẬT:{' '}
-              <span className="border border-border-gold bg-surface-elevated px-2 py-0.5 text-accent-gold">
-                {eagleEyeCard.code}
+            <div className="mt-1 flex items-center justify-center gap-1.5 font-mono text-sm font-extrabold text-content-primary">
+              <span>LÁ SẮP LẬT:</span>
+              <span className="inline-flex items-center border border-border-gold bg-content-primary px-2 py-0.5">
+                <CardLabel card={eagleEyeCard} iconSize={14} darkBg={false} />
               </span>
             </div>
           </div>

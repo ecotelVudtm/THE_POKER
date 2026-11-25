@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BetAction } from '../../types/game';
 import { soundEngine } from '../../services/soundEngine';
+import { recordViaSourceFromElement } from '../../utils/viaOrbSource';
 
 export interface BetControlsBarProps {
   enabled: boolean;
@@ -67,7 +68,10 @@ export function BetControlsBar({
             <button
               type="button"
               disabled={!enabled}
-              onClick={() => onPlaceBet('ALL_IN')}
+              onClick={(e) => {
+                recordViaSourceFromElement(e.currentTarget, 'all_in');
+                onPlaceBet('ALL_IN');
+              }}
               className="voxel-btn border-2 border-status-warning bg-status-warning/20 px-2.5 py-1 font-mono text-[11px] font-extrabold text-status-warning hover:bg-status-warning hover:text-content-inverse"
             >
               ALL-IN
@@ -97,7 +101,10 @@ export function BetControlsBar({
         <button
           type="button"
           disabled={!enabled}
-          onClick={() => onPlaceBet('FOLD')}
+          onClick={(e) => {
+            recordViaSourceFromElement(e.currentTarget, 'fold');
+            onPlaceBet('FOLD');
+          }}
           className="voxel-btn border-2 border-status-danger bg-status-danger/20 py-3 font-mono text-sm font-extrabold tracking-wider text-status-danger hover:bg-status-danger hover:text-content-primary disabled:opacity-40"
         >
           BỎ BÀI
@@ -115,7 +122,10 @@ export function BetControlsBar({
         <button
           type="button"
           disabled={!enabled || !canRaise}
-          onClick={() => onPlaceBet('RAISE', raiseBy)}
+          onClick={(e) => {
+            recordViaSourceFromElement(e.currentTarget, 'raise');
+            onPlaceBet('RAISE', raiseBy);
+          }}
           className="voxel-btn border-2 border-border-gold bg-accent-gold py-3 font-mono text-sm font-extrabold tracking-wider text-content-inverse disabled:opacity-40"
         >
           TỐ +{raiseBy.toLocaleString()}

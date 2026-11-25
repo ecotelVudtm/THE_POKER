@@ -30,7 +30,9 @@ export function BalanceCircleMiniGame({
   const samplesRef = useRef<number[]>([]);
 
   const maxAllowedRadius = Math.min(0.9, challenge.params.zoneWidth * 1.6);
-  const boxSizePx = Math.max(54, Math.min(96, Math.round(maxAllowedRadius * 115)));
+  const boxSizePx = Math.max(48, Math.min(92, Math.round(maxAllowedRadius * 124)));
+  const heading =
+    challenge.skillType === 'TIME_FREEZE' ? 'NGƯNG ĐỌNG THỜI GIAN' : 'TÂM NHÃN ĐỌC VỊ';
 
   const finishAndSubmit = useCallback(() => {
     if (submittedRef.current) return;
@@ -59,7 +61,7 @@ export function BalanceCircleMiniGame({
     const startTs = performance.now();
     let lastSampleTs = startTs;
     let lastUiTs = startTs;
-    const speed = challenge.params.speedMultiplier * 1.15;
+    const speed = challenge.params.speedMultiplier * 1.68;
     const travelRadius = (ARENA_SIZE - boxSizePx) / 2 - 8;
 
     const loop = (now: number) => {
@@ -67,9 +69,9 @@ export function BalanceCircleMiniGame({
       const elapsed = now - startTs;
       const t = (elapsed / 1000) * speed;
 
-      // Smooth figure-eight / Lissajous wandering path for the moving target box
-      const bx = ARENA_SIZE / 2 + Math.sin(t * 1.5) * travelRadius;
-      const by = ARENA_SIZE / 2 + Math.cos(t * 1.15) * travelRadius * 0.85;
+      // Brisk Lissajous path so low-level tracking feels genuinely exciting & slows down at higher mastery
+      const bx = ARENA_SIZE / 2 + Math.sin(t * 1.65) * travelRadius;
+      const by = ARENA_SIZE / 2 + Math.cos(t * 1.32) * travelRadius * 0.88;
 
       if (boxRef.current) {
         boxRef.current.style.left = `${bx}px`;
@@ -113,7 +115,7 @@ export function BalanceCircleMiniGame({
   return (
     <div className="voxel-panel w-full max-w-md border-accent-via p-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-mono text-base font-extrabold text-accent-via">TÂM NHÃN ĐỌC VỊ</h3>
+        <h3 className="font-mono text-base font-extrabold text-accent-via">{heading}</h3>
         <span className="font-mono text-xs font-bold text-accent-via">
           {Math.round(progressPct)}%
         </span>

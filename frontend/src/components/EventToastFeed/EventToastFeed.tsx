@@ -1,4 +1,5 @@
 import { ToastMessage } from '../../types/game';
+import { renderTextWithPixelCards } from '../PixelSuitIcon';
 
 export interface EventToastFeedProps {
   toasts: ToastMessage[];
@@ -49,7 +50,7 @@ export function EventToastFeed({ toasts }: EventToastFeedProps) {
             key={toast.id}
             className={`w-fit bg-surface-canvas/30 px-2 py-0.5 font-sans text-[11px] font-normal leading-snug text-content-secondary ${ageOpacity}`}
           >
-            {text}
+            {renderTextWithPixelCards(text, 11)}
           </div>
         );
       })}

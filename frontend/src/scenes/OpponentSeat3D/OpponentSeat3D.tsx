@@ -56,42 +56,86 @@ export const OpponentSeat3D = memo(function OpponentSeat3D({
   return (
     <group position={position}>
       <group rotation={[0, lookAngleY, 0]}>
-        {/* Blocky seat pedestal */}
-        <mesh castShadow receiveShadow position={[0, 0.1, 0]}>
-          <boxGeometry args={[0.96, 0.2, 0.96]} />
-          <meshStandardMaterial
-            color={dimmed ? SCENE_TOKENS.seats.foldedTint : SCENE_TOKENS.seats.pedestal}
-            roughness={0.7}
-          />
-        </mesh>
+        {/* Real 3D Voxel Tavern Poker Chair standing solidly on the floor (y = -0.84) OUTSIDE the table rail */}
+        <group>
+          {/* 4 Sturdy Wooden Chair Legs */}
+          {[
+            [-0.38, -0.53, -0.34],
+            [0.38, -0.53, -0.34],
+            [-0.38, -0.53, 0.34],
+            [0.38, -0.53, 0.34],
+          ].map(([lx, ly, lz], idx) => (
+            <mesh key={idx} castShadow receiveShadow position={[lx, ly, lz]}>
+              <boxGeometry args={[0.1, 0.62, 0.1]} />
+              <meshStandardMaterial color={SCENE_TOKENS.table.woodOuter} roughness={0.78} />
+            </mesh>
+          ))}
+          {/* Wooden Seat Frame + Padded Leather Cushion */}
+          <mesh castShadow receiveShadow position={[0, -0.21, 0]}>
+            <boxGeometry args={[0.92, 0.08, 0.86]} />
+            <meshStandardMaterial color={SCENE_TOKENS.table.woodOuter} roughness={0.74} />
+          </mesh>
+          <mesh castShadow receiveShadow position={[0, -0.145, 0.02]}>
+            <boxGeometry args={[0.82, 0.07, 0.76]} />
+            <meshStandardMaterial
+              color={dimmed ? SCENE_TOKENS.seats.foldedTint : SCENE_TOKENS.table.railLeather}
+              roughness={0.68}
+            />
+          </mesh>
+          {/* Chair Backrest Posts + Padded Back Panel + Brass Top Rail */}
+          <mesh castShadow position={[-0.38, 0.25, -0.38]}>
+            <boxGeometry args={[0.1, 0.92, 0.1]} />
+            <meshStandardMaterial color={SCENE_TOKENS.table.woodOuter} roughness={0.74} />
+          </mesh>
+          <mesh castShadow position={[0.38, 0.25, -0.38]}>
+            <boxGeometry args={[0.1, 0.92, 0.1]} />
+            <meshStandardMaterial color={SCENE_TOKENS.table.woodOuter} roughness={0.74} />
+          </mesh>
+          <mesh castShadow position={[0, 0.28, -0.36]}>
+            <boxGeometry args={[0.7, 0.68, 0.09]} />
+            <meshStandardMaterial
+              color={dimmed ? SCENE_TOKENS.seats.foldedTint : SCENE_TOKENS.seats.pedestal}
+              roughness={0.7}
+            />
+          </mesh>
+          <mesh position={[0, 0.72, -0.38]}>
+            <boxGeometry args={[0.9, 0.08, 0.12]} />
+            <meshStandardMaterial
+              color={SCENE_TOKENS.table.woodGoldInlay}
+              metalness={0.65}
+              roughness={0.35}
+            />
+          </mesh>
+        </group>
 
-        {/* Active Turn Square Voxel Frame (strictly non-overlapping corners) */}
+        {/* Active Turn Square Voxel Frame cleanly framing the chair base on the floor */}
         {isCurrentTurn && (
-          <group position={[0, 0.22, 0]}>
-            <mesh position={[0, 0, -0.54]}>
-              <boxGeometry args={[1.16, 0.04, 0.08]} />
+          <group position={[0, -0.81, 0]}>
+            <mesh position={[0, 0, -0.64]}>
+              <boxGeometry args={[1.36, 0.04, 0.08]} />
               <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
             </mesh>
-            <mesh position={[0, 0, 0.54]}>
-              <boxGeometry args={[1.16, 0.04, 0.08]} />
+            <mesh position={[0, 0, 0.64]}>
+              <boxGeometry args={[1.36, 0.04, 0.08]} />
               <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
             </mesh>
-            <mesh position={[-0.54, 0, 0]}>
-              <boxGeometry args={[0.08, 0.04, 1.0]} />
+            <mesh position={[-0.64, 0, 0]}>
+              <boxGeometry args={[0.08, 0.04, 1.2]} />
               <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
             </mesh>
-            <mesh position={[0.54, 0, 0]}>
-              <boxGeometry args={[0.08, 0.04, 1.0]} />
+            <mesh position={[0.64, 0, 0]}>
+              <boxGeometry args={[0.08, 0.04, 1.2]} />
               <meshBasicMaterial color={SCENE_TOKENS.seats.activeRing} />
             </mesh>
           </group>
         )}
 
-        {/* Full 3D Voxel Player Avatar with Equipped Skin (Tiers 1–4) */}
+        {/* Full-Body Seated 3D Voxel Player Avatar with Equipped Skin (Tiers 1–4) */}
         <VoxelAvatar3D
           skinId={player.equippedSkin}
           seatIndex={player.seatIndex}
           dimmed={dimmed}
+          pose="seated"
         />
       </group>
 

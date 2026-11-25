@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { normalizeSkillMastery } from '../../domain/entities/Account';
 import { createPlayer } from '../../domain/entities/Player';
 import {
   appendRoomLog,
@@ -101,6 +102,7 @@ export class JoinRoomUseCase {
         ownedItems: [],
         equippedSkin: account.equippedSkin,
         equippedWinEffect: account.equippedWinEffect,
+        skillMastery: normalizeSkillMastery(account.skillMastery),
       });
       if (account.loanBalance > 0) {
         hostPlayer.activeLoan = {
@@ -187,6 +189,7 @@ export class JoinRoomUseCase {
         ownedItems: [],
         equippedSkin: account.equippedSkin,
         equippedWinEffect: account.equippedWinEffect,
+        skillMastery: normalizeSkillMastery(account.skillMastery),
       })
     );
 

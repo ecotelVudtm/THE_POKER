@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AuthenticateAccountUseCase } from '../application/use-cases/AuthenticateAccountUseCase';
 import { PlaceBetUseCase } from '../application/use-cases/PlaceBetUseCase';
+import { StartMatchUseCase } from '../application/use-cases/StartMatchUseCase';
 import { createPlayer, VIA_GAIN_ON_FOLD, VIA_GAIN_ON_RAISE, VIA_GAIN_ON_WIN, VIA_GAIN_ON_WIN_STREAK } from '../domain/entities/Player';
 import { createRoom } from '../domain/entities/Room';
 import { createMiniGameChallenge, evaluateMiniGameSubmission } from '../domain/rules/MiniGameEngine';
@@ -222,5 +223,62 @@ describe('Vía Rules (Fold, Raise, 3-Win Streak) & Anti-Cheat Security', () => {
       startTime + 200
     );
     expect(forgedFuture.success).toBe(false);
+  });
+
+  it('auto-rebuys busted bots & players up to room.maxBuyIn in STANDARD mode (not ARENA)', async () => {
+    const accountRepo = new InMemoryAccountRepository(null);
+    const roomRepo = new InMemoryRoomRepository();
+    const auth = new AuthenticateAccountUseCase(accountRepo);
+    const startMatch = new StartMatchUseCase(roomRepo, accountRepo);
+
+    const humanAcc = await auth.execute({
+      username: 'rebuy_tester',
+      password: 'password123',
+      mode: 'register',
+    });
+    humanAcc.chips = 50_000;
+    await accountRepo.update(humanAcc);
+
+    const room = createRoom({
+      id: 'REBUY10K',
+      name: 'Standard 10K',
+      hostAccountId: humanAcc.id,
+      mode: 'STANDARD',
+      maxBuyIn: 10_000,
+      smallBlind: 200,
+      bigBlind: 400,
+    });
+    room.status = 'PLAYING';
+    room.phase = 'SHOWDOWN';
+    room.handNumber = 1;
+
+    const human = createPlayer({
+      accountId: humanAcc.id,
+      socketId: 'sock_h',
+      displayName: 'Human',
+      isBot: false,
+      seatIndex: 0,
+      chips: 0,
+    });
+    const bot = createPlayer({
+      accountId: 'bot_1',
+      socketId: null,
+      displayName: 'Bot',
+      isBot: true,
+      seatIndex: 1,
+      chips: 0,
+    });
+    room.players.push(human, bot);
+    await roomRepo.save(room);
+
+    const res = await startMatch.execute(room.id);
+    expect(res.room.status).toBe('PLAYING');
+    expect(human.eliminated).toBe(false);
+    expect(bot.eliminated).toBe(false);
+    // Both rebought exact 10,000 maxBuyIn before posting SB/BB (200 / 400)
+    expect(human.lastSyncedChips).toBe(10_000);
+    expect(bot.lastSyncedChips).toBe(10_000);
+    expect(human.chips + human.currentBet).toBe(10_000);
+    expect(bot.chips + bot.currentBet).toBe(10_000);
   });
 });

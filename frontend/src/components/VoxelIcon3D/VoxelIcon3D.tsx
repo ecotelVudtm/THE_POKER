@@ -24,8 +24,10 @@ export interface VoxelIcon3DProps {
   kind: VoxelIconKind;
   size?: number;
   title?: string;
-  /** When true (e.g. Lobby Guide Book), hovering opens the 3D book cover and clicking triggers parent action instead of spinning */
+  /** When true (e.g. Lobby Guide Book), hovering opens the 3D book cover */
   openOnHover?: boolean;
+  /** Optional click-to-spin interaction (disabled by default so spell card & UI button icons never steal clicks or spin unnecessarily) */
+  interactive?: boolean;
 }
 
 interface VoxelBoxProps {
@@ -140,12 +142,13 @@ export function VoxelIcon3D({
   size = 20,
   title,
   openOnHover = false,
+  interactive = false,
 }: VoxelIcon3DProps) {
   const [spinning, setSpinning] = useState(false);
   const [hovered, setHovered] = useState(false);
 
   const triggerFlick = () => {
-    if (openOnHover || spinning) return;
+    if (!interactive || openOnHover || spinning) return;
     setSpinning(true);
     if (kind === 'chip' || kind === 'coin') soundEngine.playChipClink();
     else soundEngine.playItemRefresh();
@@ -796,9 +799,9 @@ export function VoxelIcon3D({
 
   return (
     <span
-      role={openOnHover ? undefined : 'button'}
-      tabIndex={openOnHover ? undefined : 0}
-      title={title ?? (openOnHover ? 'Mở Sổ Tay Thần Bài' : 'Bấm để búng xoay 3D')}
+      role={interactive && !openOnHover ? 'button' : undefined}
+      tabIndex={interactive && !openOnHover ? 0 : undefined}
+      title={title ?? (openOnHover ? 'Mở Sổ Tay Thần Bài' : undefined)}
       onMouseEnter={
         openOnHover
           ? () => {
@@ -809,24 +812,24 @@ export function VoxelIcon3D({
       }
       onMouseLeave={openOnHover ? () => setHovered(false) : undefined}
       onClick={
-        openOnHover
-          ? undefined
-          : (e) => {
+        interactive && !openOnHover
+          ? (e) => {
               e.stopPropagation();
               triggerFlick();
             }
+          : undefined
       }
       onKeyDown={
-        openOnHover
-          ? undefined
-          : (e) => {
+        interactive && !openOnHover
+          ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 triggerFlick();
               }
             }
+          : undefined
       }
-      className="voxel-icon-stage shrink-0"
+      className={`voxel-icon-stage shrink-0 ${interactive || openOnHover ? '' : 'pointer-events-none'}`}
       style={{ width: size + 8, height: size + 8 }}
     >
       <span

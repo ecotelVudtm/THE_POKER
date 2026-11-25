@@ -50,9 +50,10 @@ async function bootstrap(): Promise<void> {
   const takeLoanUseCase = new TakeLoanUseCase(roomRepo, accountRepo);
   const repayLoanUseCase = new RepayLoanUseCase(roomRepo, accountRepo);
 
-  // Infrastructure Security Services
+  // Infrastructure Security & Adaptive Micro-AI Services
   const tokenService = new TokenService(process.env.AUTH_SECRET);
   const rateLimiter = new RateLimiter();
+  const botAI = new BotAIEngine();
 
   // Presentation HTTP
   const accountController = new AccountController(
@@ -78,6 +79,7 @@ async function bootstrap(): Promise<void> {
     roomRepo,
     tokenService,
     rateLimiter,
+    botAI,
     joinRoomUseCase,
     startMatchUseCase,
     placeBetUseCase,
@@ -89,8 +91,7 @@ async function bootstrap(): Promise<void> {
     corsOrigin,
   });
 
-  // Infrastructure Timer Loop & Bot AI
-  const botAI = new BotAIEngine();
+  // Infrastructure Timer Loop
   const timerLoop = new MatchTimerLoop(
     roomRepo,
     placeBetUseCase,

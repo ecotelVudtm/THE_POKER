@@ -15,6 +15,7 @@ import { BetControlsBar } from '../BetControlsBar';
 import { SkillActionBar } from '../SkillActionBar';
 import { EventToastFeed } from '../EventToastFeed';
 import { VoxelIcon3D } from '../VoxelIcon3D';
+import { PixelSuitIcon } from '../PixelSuitIcon';
 
 export interface GameHudOverlayProps {
   room: FilteredRoomState;
@@ -40,13 +41,6 @@ const PHASE_LABELS: Record<FilteredRoomState['phase'], string> = {
   TURN: 'TURN',
   RIVER: 'RIVER',
   SHOWDOWN: 'SHOWDOWN',
-};
-
-const SUIT_SYMBOL: Record<Card['suit'], string> = {
-  SPADES: '♠',
-  HEARTS: '♥',
-  DIAMONDS: '♦',
-  CLUBS: '♣',
 };
 
 function formatRank(rank: Card['rank']): string {
@@ -209,12 +203,12 @@ export function GameHudOverlay({
                       >
                         {formatRank(card.rank)}
                       </span>
-                      <span
-                        className={`text-xl leading-none ${
-                          isRed ? 'text-status-danger' : 'text-content-inverse'
-                        }`}
-                      >
-                        {SUIT_SYMBOL[card.suit]}
+                      <span className="mb-1 flex items-center justify-center">
+                        <PixelSuitIcon
+                          suit={card.suit}
+                          size={18}
+                          className={isRed ? 'text-status-danger' : 'text-content-inverse'}
+                        />
                       </span>
                     </div>
                   );

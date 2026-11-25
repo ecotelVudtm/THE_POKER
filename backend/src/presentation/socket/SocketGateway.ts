@@ -19,12 +19,14 @@ import { LoanPackage } from '../../domain/value-objects/Loan';
 import { MiniGameSubmissionPayload, SkillType } from '../../domain/value-objects/Skill';
 import { RateLimiter } from '../../infrastructure/security/RateLimiter';
 import { TokenService } from '../../infrastructure/security/TokenService';
+import { BotAIEngine } from '../../infrastructure/ai/BotAIEngine';
 
 export interface SocketGatewayDeps {
   accountRepo: IAccountRepository;
   roomRepo: IRoomRepository;
   tokenService: TokenService;
   rateLimiter: RateLimiter;
+  botAI?: BotAIEngine;
   joinRoomUseCase: JoinRoomUseCase;
   startMatchUseCase: StartMatchUseCase;
   placeBetUseCase: PlaceBetUseCase;
@@ -175,7 +177,8 @@ export class SocketGateway {
           await this.runSerialized(payload?.roomId, async () => {
             const room = await this.deps.roomRepo.findById(payload?.roomId);
             if (!room) return;
-            if (room.status === 'WAITING') {
+
+            if (room.status === 'WAITING' || room.status === 'FINISHED') {
               room.players = room.players.filter((p) => p.accountId !== accountId);
               if (room.players.filter((p) => !p.isBot).length === 0) {
                 await this.deps.roomRepo.delete(room.id);
@@ -184,12 +187,47 @@ export class SocketGateway {
                 this.broadcastRoomState(room);
               }
             } else {
-              const player = room.players.find((p) => p.accountId === accountId);
-              if (player) {
-                player.socketId = null;
-                player.phoneOpen = false;
-                await this.deps.roomRepo.save(room);
-                this.broadcastRoomState(room);
+              // Active PLAYING match: fold cleanly if it's currently their turn so other players aren't stalled
+              const currentActor =
+                room.currentTurnIndex >= 0 ? room.players[room.currentTurnIndex] : null;
+              if (
+                currentActor &&
+                currentActor.accountId === accountId &&
+                room.phase !== 'SHOWDOWN' &&
+                !currentActor.folded &&
+                !currentActor.allIn &&
+                !currentActor.eliminated
+              ) {
+                try {
+                  const res = await this.deps.placeBetUseCase.execute({
+                    roomId: room.id,
+                    accountId,
+                    action: 'FOLD',
+                  });
+                  this.dispatchDomainEvents(res.room, res.events);
+                } catch {
+                  // Ignore if phase already transitioned
+                }
+              }
+
+              const latestRoom = await this.deps.roomRepo.findById(room.id);
+              if (latestRoom) {
+                const player = latestRoom.players.find((p) => p.accountId === accountId);
+                if (player) {
+                  player.socketId = null;
+                  player.phoneOpen = false;
+                  player.folded = true;
+                  player.eliminated = true;
+                }
+                const remainingHumans = latestRoom.players.filter(
+                  (p) => !p.isBot && !p.eliminated && p.socketId !== null
+                );
+                if (remainingHumans.length === 0) {
+                  await this.deps.roomRepo.delete(latestRoom.id);
+                } else {
+                  await this.deps.roomRepo.save(latestRoom);
+                  this.broadcastRoomState(latestRoom);
+                }
               }
             }
             await socket.leave(room.id);
@@ -206,6 +244,7 @@ export class SocketGateway {
           const result = await this.runSerialized(payload?.roomId, () =>
             this.deps.startMatchUseCase.execute(payload?.roomId, accountId)
           );
+          this.deps.botAI?.updateAfterRound(result.room);
           this.broadcastRoomState(result.room);
           this.dispatchDomainEvents(result.room, result.events);
         } catch (err) {
@@ -219,14 +258,25 @@ export class SocketGateway {
           try {
             this.assertSocketRateLimit(socket);
             const accountId = this.resolveAccountId(socket);
-            const result = await this.runSerialized(payload?.roomId, () =>
-              this.deps.placeBetUseCase.execute({
+            const result = await this.runSerialized(payload?.roomId, async () => {
+              const roomBefore = await this.deps.roomRepo.findById(payload?.roomId);
+              const actorBefore = roomBefore?.players.find((p) => p.accountId === accountId);
+              const toCallBefore =
+                roomBefore && actorBefore
+                  ? Math.max(0, roomBefore.currentBet - actorBefore.currentBet)
+                  : 0;
+
+              const res = await this.deps.placeBetUseCase.execute({
                 roomId: payload?.roomId,
                 accountId,
                 action: payload?.action,
                 raiseAmount: payload?.raiseAmount,
-              })
-            );
+              });
+
+              this.deps.botAI?.observeAction(res.room, accountId, payload?.action, toCallBefore);
+              this.deps.botAI?.updateAfterRound(res.room);
+              return res;
+            });
             this.broadcastRoomState(result.room);
             this.dispatchDomainEvents(result.room, result.events);
           } catch (err) {

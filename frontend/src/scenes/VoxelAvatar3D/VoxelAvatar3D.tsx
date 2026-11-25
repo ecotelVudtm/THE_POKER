@@ -12,6 +12,8 @@ export interface VoxelAvatar3DProps {
   dimmed?: boolean;
   /** Optional slow turntable spin for Shop 3D preview */
   turntable?: boolean;
+  /** 'standing' for Shop full-body podium preview, 'seated' for sitting on chairs around the poker table */
+  pose?: 'standing' | 'seated';
 }
 
 const DEFAULT_SHIRT_COLORS = ['#2563eb', '#b45309', '#7c3aed', '#0f766e', '#be123c'];
@@ -130,9 +132,15 @@ export function VoxelAvatar3D({
   seatIndex = 0,
   dimmed = false,
   turntable = false,
+  pose = 'standing',
 }: VoxelAvatar3DProps) {
   const skin = SKIN_CATALOG_BY_ID[skinId] ?? SKIN_CATALOG_BY_ID.DEFAULT;
   const faceTex = useMemo(() => getVoxelFaceTexture(seatIndex), [seatIndex]);
+  const isSeated = pose === 'seated';
+  const pantsColor = dimmed ? SCENE_TOKENS.seats.foldedTint : '#1e293b';
+  const shoeColor = dimmed ? SCENE_TOKENS.seats.foldedTint : '#181411';
+  // Upper-body base Y: lifted cleanly above full legs when standing, or resting on chair hips when seated
+  const upperBodyOffsetY = isSeated ? -0.14 : 0.44;
 
   const rootRef = useRef<THREE.Group>(null);
   const headGroupRef = useRef<THREE.Group>(null);
@@ -176,11 +184,11 @@ export function VoxelAvatar3D({
       }
     }
 
-    // Reset arm & head defaults
-    let leftArmX = 0;
-    let leftArmZ = 0;
-    let rightArmX = 0;
-    let rightArmZ = 0;
+    // Reset arm & head defaults (seated players angle arms slightly forward toward the poker table)
+    let leftArmX = isSeated ? -0.32 : 0;
+    let leftArmZ = isSeated ? 0.06 : 0;
+    let rightArmX = isSeated ? -0.32 : 0;
+    let rightArmZ = isSeated ? -0.06 : 0;
     let headPitch = 0;
 
     // Tier 4A: TYCOON_WATCH — raises BOTH hands up to check golden watch on wrist
@@ -232,6 +240,72 @@ export function VoxelAvatar3D({
 
   return (
     <group ref={rootRef} scale={[1.12, 1.12, 1.12]}>
+      {/* FULL LOWER BODY: Legs, Pants & Shoes (either Standing upright or Seated bent at the knees!) */}
+      {isSeated ? (
+        <group>
+          {/* Seated Hip Base resting on chair cushion */}
+          <mesh castShadow position={[0, -0.04, 0.02]}>
+            <boxGeometry args={[0.52, 0.16, 0.34]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.78} />
+          </mesh>
+          {/* Left & Right Thighs extending forward along chair seat */}
+          <mesh castShadow position={[-0.14, -0.05, 0.24]}>
+            <boxGeometry args={[0.21, 0.19, 0.46]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.78} />
+          </mesh>
+          <mesh castShadow position={[0.14, -0.05, 0.24]}>
+            <boxGeometry args={[0.21, 0.19, 0.46]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.78} />
+          </mesh>
+          {/* Left & Right Shins dropping cleanly down toward the floor */}
+          <mesh castShadow position={[-0.14, -0.37, 0.36]}>
+            <boxGeometry args={[0.2, 0.46, 0.21]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.8} />
+          </mesh>
+          <mesh castShadow position={[0.14, -0.37, 0.36]}>
+            <boxGeometry args={[0.2, 0.46, 0.21]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.8} />
+          </mesh>
+          {/* Left & Right Voxel Shoes planted near the floor */}
+          <mesh castShadow position={[-0.14, -0.66, 0.42]}>
+            <boxGeometry args={[0.21, 0.13, 0.3]} />
+            <meshStandardMaterial color={shoeColor} roughness={0.65} />
+          </mesh>
+          <mesh castShadow position={[0.14, -0.66, 0.42]}>
+            <boxGeometry args={[0.21, 0.13, 0.3]} />
+            <meshStandardMaterial color={shoeColor} roughness={0.65} />
+          </mesh>
+        </group>
+      ) : (
+        <group>
+          {/* Standing Hip Block */}
+          <mesh castShadow position={[0, 0.62, 0]}>
+            <boxGeometry args={[0.52, 0.12, 0.32]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.78} />
+          </mesh>
+          {/* Standing Left & Right Legs */}
+          <mesh castShadow position={[-0.14, 0.36, 0]}>
+            <boxGeometry args={[0.22, 0.48, 0.24]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.78} />
+          </mesh>
+          <mesh castShadow position={[0.14, 0.36, 0]}>
+            <boxGeometry args={[0.22, 0.48, 0.24]} />
+            <meshStandardMaterial color={pantsColor} roughness={0.78} />
+          </mesh>
+          {/* Standing Left & Right Shoes resting flush on podium */}
+          <mesh castShadow position={[-0.14, 0.065, 0.04]}>
+            <boxGeometry args={[0.23, 0.13, 0.31]} />
+            <meshStandardMaterial color={shoeColor} roughness={0.65} />
+          </mesh>
+          <mesh castShadow position={[0.14, 0.065, 0.04]}>
+            <boxGeometry args={[0.23, 0.13, 0.31]} />
+            <meshStandardMaterial color={shoeColor} roughness={0.65} />
+          </mesh>
+        </group>
+      )}
+
+      {/* UPPER BODY (Torso, Belt, Arms, Head, Hats & VFX) */}
+      <group position={[0, upperBodyOffsetY, 0]}>
       {/* Torso */}
       <mesh castShadow position={[0, 0.52, 0]}>
         <boxGeometry args={[0.54, 0.62, 0.34]} />
@@ -553,6 +627,7 @@ export function VoxelAvatar3D({
           <MiniConjuredDove index={2} seed={animSeed} />
         </>
       )}
+      </group>
     </group>
   );
 }

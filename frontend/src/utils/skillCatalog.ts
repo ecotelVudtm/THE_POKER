@@ -10,6 +10,7 @@ export interface SkillCatalogEntry {
   subtitle: string;
   fullName: string;
   iconKind: VoxelIconKind;
+  artImage: string;
   viaCost: number;
   shopPrice: number;
   miniGameType: MiniGameType;
@@ -31,6 +32,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     subtitle: 'TAY ÁO',
     fullName: 'Tráo Bài Tay Áo',
     iconKind: 'sleight',
+    artImage: '/assets/spells/sleight_of_hand.jpg',
     viaCost: 35,
     shopPrice: 500,
     miniGameType: 'TIMING_BAR',
@@ -49,6 +51,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     subtitle: 'ĐỌC VỊ',
     fullName: 'Tâm Nhãn Đọc Vị',
     iconKind: 'eagle',
+    artImage: '/assets/spells/eagle_eye.jpg',
     viaCost: 30,
     shopPrice: 800,
     miniGameType: 'BALANCE_CIRCLE',
@@ -67,6 +70,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     subtitle: 'ÁP ĐẢO',
     fullName: 'Tỏa Khí Thế',
     iconKind: 'pressure',
+    artImage: '/assets/spells/pressure_aura.jpg',
     viaCost: 20,
     shopPrice: 400,
     miniGameType: 'RHYTHM_TAP',
@@ -86,6 +90,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     subtitle: 'THU KHÍ',
     fullName: 'Hút Vía Đối Thủ',
     iconKind: 'siphon',
+    artImage: '/assets/spells/via_siphon.jpg',
     viaCost: 20,
     shopPrice: 350,
     miniGameType: 'TIMING_BAR',
@@ -105,6 +110,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     subtitle: 'THỜI GIAN',
     fullName: 'Ngưng Đọng Thời Gian',
     iconKind: 'freeze',
+    artImage: '/assets/spells/time_freeze.jpg',
     viaCost: 25,
     shopPrice: 400,
     miniGameType: 'BALANCE_CIRCLE',
@@ -123,6 +129,7 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     subtitle: 'TĨNH TÂM',
     fullName: 'Mặt Lạnh Tĩnh Tâm',
     iconKind: 'pokerface',
+    artImage: '/assets/spells/poker_face.jpg',
     viaCost: 20,
     shopPrice: 350,
     miniGameType: 'RHYTHM_TAP',

@@ -21,7 +21,9 @@ export function TimingBarMiniGame({ challenge, onSubmit }: TimingBarMiniGameProp
   const startTsRef = useRef<number>(performance.now());
   const lockedRef = useRef(false);
 
-  const speed = challenge.params.speedMultiplier * 1.35;
+  const speed = challenge.params.speedMultiplier * 1.62;
+  const heading =
+    challenge.skillType === 'VIA_SIPHON' ? 'HÚT VÍA ĐỐI THỦ' : 'TRÁO BÀI TAY ÁO';
 
   const computePosAt = useCallback(
     (perfNow: number) => {
@@ -95,7 +97,7 @@ export function TimingBarMiniGame({ challenge, onSubmit }: TimingBarMiniGameProp
   return (
     <div className="voxel-panel-gold w-full max-w-md p-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-mono text-base font-extrabold text-accent-gold">TRÁO BÀI TAY ÁO</h3>
+        <h3 className="font-mono text-base font-extrabold text-accent-gold">{heading}</h3>
         <span className="font-mono text-xs font-bold text-status-warning">
           {(remainingMs / 1000).toFixed(1)}s
         </span>

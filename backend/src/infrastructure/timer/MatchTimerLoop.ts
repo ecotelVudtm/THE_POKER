@@ -60,6 +60,7 @@ export class MatchTimerLoop {
           if (paused >= 4) {
             this.showdownPauseTicks.delete(room.id);
             const result = await this.startMatchUseCase.execute(room.id);
+            this.botAI.updateAfterRound(result.room);
             this.callbacks.onRoomUpdated(result.room);
             if (result.events.length > 0) {
               this.callbacks.onDomainEvents(result.room, result.events);
@@ -190,6 +191,7 @@ export class MatchTimerLoop {
                 action: decision.action,
                 raiseAmount: decision.raiseAmount,
               });
+              this.botAI.updateAfterRound(betRes.room);
               emittedEvents.push(...betRes.events);
               dirty = true;
             } else {
@@ -203,6 +205,8 @@ export class MatchTimerLoop {
               accountId: actorAfterTick.accountId,
               action: fallbackAction,
             });
+            this.botAI.observeAction(betRes.room, actorAfterTick.accountId, fallbackAction, toCall);
+            this.botAI.updateAfterRound(betRes.room);
             emittedEvents.push(...betRes.events);
             dirty = true;
           }

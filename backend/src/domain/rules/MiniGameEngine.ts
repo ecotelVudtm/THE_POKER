@@ -33,14 +33,14 @@ export function computeMiniGameParameters(
   const clampedLevel = Math.max(1, Math.min(10, modifiers.masteryLevel));
   const levelBonus = clampedLevel - 1; // 0..9
 
-  // Base zone width (0..1)
-  let zoneWidth = 0.22 + levelBonus * 0.025;
-  // Base speed multiplier (1.0 = standard, lower = easier)
-  let speedMultiplier = 1.0 - levelBonus * 0.04;
+  // Base zone width (0..1): tighter & more challenging at Lv.1 (14.5%), widening smoothly up to Lv.10 (36%)
+  let zoneWidth = 0.145 + levelBonus * 0.024;
+  // Base speed multiplier: brisk & snappy at Lv.1 (1.38x), slowing smoothly down to 0.705x at Lv.10
+  let speedMultiplier = 1.38 - levelBonus * 0.075;
   // Base balance ratio needed for BALANCE_CIRCLE
   let requiredBalanceRatio = 0.72 - levelBonus * 0.02;
-  // Base rhythm tolerance in ms for RHYTHM_TAP (snappy & fair)
-  let rhythmToleranceMs = 210 + levelBonus * 14;
+  // Base rhythm tolerance in ms for RHYTHM_TAP
+  let rhythmToleranceMs = 175 + levelBonus * 14;
 
   if (modifiers.blessed) {
     zoneWidth *= 1.2; // +20% (kept for scaling tests / legacy blessed modifier)
@@ -79,8 +79,8 @@ export function computeMiniGameParameters(
   const targetStart = Number((minStart + randomFraction * (maxStart - minStart)).toFixed(4));
   const targetEnd = Number(Math.min(1, targetStart + zoneWidth).toFixed(4));
 
-  // Rhythm beats for RHYTHM_TAP (3 beats scaled inversely by speedMultiplier)
-  const baseBeats = [1000, 2100, 3200];
+  // Rhythm beats for RHYTHM_TAP (3 beats scaled inversely by speedMultiplier -> faster at low level!)
+  const baseBeats = [1080, 2180, 3280];
   const rhythmBeatsMs = baseBeats.map((ms) => Math.round(ms / speedMultiplier));
 
   // Composite difficulty score: higher = harder (useful for UI indicators & tests)

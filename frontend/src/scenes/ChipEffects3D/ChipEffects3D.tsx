@@ -35,16 +35,15 @@ interface TableChipEntity {
 }
 
 const FELT_FLOOR_Y = 0.068;
-const GRAVITY = 20;
 const CENTER_POT_BASE: [number, number, number] = [0, FELT_FLOOR_Y, 0.72];
 
 /**
  * A single REAL physical voxel chip on the table.
  * Lives through the entire hand:
- *   1. Tossed with ballistic gravity & bounce onto the player's betting spot.
+ *   1. Tossed with a silky analytic parabolic arc + gentle damped micro-bounce (ZERO sudden rotation snap or teleport!).
  *   2. Stays resting right there on the green felt.
  *   3. At round end, THIS EXACT CHIP slides smoothly into the center pot pile.
- *   4. At Showdown, ALL THESE EXACT CHIPS sweep smoothly across the felt to the winner!
+ *   4. At Showdown, ALL THESE EXACT CHIPS sweep smoothly across the felt straight into the winner's chip bank!
  */
 function PhysicalTableChip({
   chip,
@@ -57,46 +56,45 @@ function PhysicalTableChip({
   const geo = useMemo(() => getVoxelChipGeometry(), []);
   const stripeGeo = useMemo(() => getStripeGeometry(), []);
 
+  // Hide only on initial mount before first animation frame so delayed chips never flash at origin
+  useEffect(() => {
+    if (groupRef.current) {
+      groupRef.current.visible = false;
+    }
+  }, []);
+
   const stRef = useRef({
     motionVersion: -1,
     started: false,
+    clinked: false,
     settled: false,
     collected: false,
-    bounces: 0,
-    spawnAt: 0,
-    slideStartAt: 0,
-    slideFrom: new THREE.Vector3(chip.from[0], Math.max(FELT_FLOOR_Y + 0.15, chip.from[1]), chip.from[2]),
-    pos: new THREE.Vector3(chip.from[0], Math.max(FELT_FLOOR_Y + 0.15, chip.from[1]), chip.from[2]),
-    vel: new THREE.Vector3(),
-    rot: new THREE.Euler(0.3, 0, 0.2),
-    angVel: new THREE.Vector3(8, 10, 4),
+    startAt: 0,
+    fromPos: new THREE.Vector3(chip.from[0], Math.max(FELT_FLOOR_Y + 0.12, chip.from[1]), chip.from[2]),
+    pos: new THREE.Vector3(chip.from[0], Math.max(FELT_FLOOR_Y + 0.12, chip.from[1]), chip.from[2]),
+    rotY: (chip.id * 1.17) % (Math.PI * 2),
+    spinDir: chip.id % 2 === 0 ? 1 : -1,
+    arcPeak: 0.36 + (chip.id % 3) * 0.05,
   });
 
-  // Re-arm motion whenever chip gets a new motionVersion (e.g. initial toss -> slide_to_pot -> slide_to_winner)
+  // Re-arm motion cleanly whenever chip gets a new motionVersion (toss -> slide_to_pot -> slide_to_winner)
   if (stRef.current.motionVersion !== chip.motionVersion) {
     const st = stRef.current;
     st.motionVersion = chip.motionVersion;
     st.settled = false;
-    st.bounces = 0;
+    st.clinked = false;
 
     if (chip.phase === 'toss') {
-      const startY = Math.max(FELT_FLOOR_Y + 0.22, chip.from[1]);
-      const targetY = Math.max(FELT_FLOOR_Y, chip.to[1]);
-      const T = 0.36;
+      const startY = Math.max(FELT_FLOOR_Y + 0.14, chip.from[1]);
       st.started = false;
-      st.spawnAt = performance.now() + chip.delayMs;
-      st.pos.set(chip.from[0], startY, chip.from[2]);
-      st.vel.set(
-        (chip.to[0] - chip.from[0]) / T,
-        (targetY - startY + 0.5 * GRAVITY * T * T) / T + 0.45,
-        (chip.to[2] - chip.from[2]) / T
-      );
-      st.rot.set(0.3, 0, 0.2);
-      st.angVel.set(8.5, 10.5, 4.2);
+      st.startAt = performance.now() + chip.delayMs;
+      st.fromPos.set(chip.from[0], startY, chip.from[2]);
+      st.pos.copy(st.fromPos);
     } else if (chip.phase === 'slide_to_pot' || chip.phase === 'slide_to_winner') {
+      // Slide seamlessly from the chip's EXACT current rendered position (never teleport!)
       st.started = true;
-      st.slideStartAt = performance.now() + chip.delayMs;
-      st.slideFrom.copy(st.pos);
+      st.startAt = performance.now() + chip.delayMs;
+      st.fromPos.copy(st.pos);
     }
   }
 
@@ -107,72 +105,89 @@ function PhysicalTableChip({
 
     const now = performance.now();
 
-    // 1. Ballistic Toss with gravity & felt bounce
+    // 1. Silky Analytic Parabolic Toss + Soft Damped Felt Landing (ZERO snap / ZERO overshoot!)
     if (chip.phase === 'toss') {
-      if (!st.started) {
-        if (now < st.spawnAt) {
-          mesh.visible = false;
-          return;
-        }
-        st.started = true;
-        mesh.visible = true;
+      if (now < st.startAt) {
+        mesh.visible = false;
+        return;
       }
-
+      mesh.visible = true;
       if (st.settled) return;
 
-      const dt = Math.min(0.033, delta);
-      const floorY = Math.max(FELT_FLOOR_Y, chip.to[1]);
-      st.vel.y -= GRAVITY * dt;
-      st.pos.addScaledVector(st.vel, dt);
+      const elapsedSec = (now - st.startAt) / 1000;
+      const flightSec = 0.34;
+      const settleSec = 0.16;
+      const targetY = Math.max(FELT_FLOOR_Y, chip.to[1]);
 
-      if (st.pos.y <= floorY) {
-        st.pos.y = floorY;
-        if (Math.abs(st.vel.y) > 0.7 && st.bounces < 2) {
-          if (st.bounces === 0) soundEngine.playChipClink();
-          st.bounces += 1;
-          st.vel.y = -st.vel.y * 0.34;
-          st.vel.x *= 0.12;
-          st.vel.z *= 0.12;
-          st.angVel.multiplyScalar(0.3);
-        } else {
-          st.pos.y = floorY;
-          st.vel.set(0, 0, 0);
-          st.angVel.set(0, 0, 0);
-          st.rot.set(0, st.rot.y, 0);
+      if (elapsedSec < flightSec) {
+        const u = elapsedSec / flightSec; // 0..1
+        // Smooth horizontal deceleration toward exact target spot
+        const horizEase = 1 - Math.pow(1 - u, 1.5);
+        st.pos.x = THREE.MathUtils.lerp(st.fromPos.x, chip.to[0], horizEase);
+        st.pos.z = THREE.MathUtils.lerp(st.fromPos.z, chip.to[2], horizEase);
+        // Clean parabolic vertical arc landing precisely at targetY when u -> 1
+        const baseY = THREE.MathUtils.lerp(st.fromPos.y, targetY, u);
+        st.pos.y = baseY + 4 * st.arcPeak * u * (1 - u);
+
+        // Smooth pitch/roll tilt that returns naturally to 0° BEFORE touching the felt!
+        const tiltEnv = Math.sin(u * Math.PI);
+        st.rotY += delta * 5.2 * st.spinDir * (1 - u * 0.45);
+        mesh.position.copy(st.pos);
+        mesh.rotation.set(tiltEnv * 0.38, st.rotY, tiltEnv * 0.2 * st.spinDir);
+        mesh.scale.setScalar(1);
+      } else {
+        if (!st.clinked) {
+          st.clinked = true;
+          soundEngine.playChipClink();
+        }
+        const b = Math.min(1, (elapsedSec - flightSec) / settleSec);
+        // Gentle damped micro-hop directly on the landing spot
+        const hop = Math.sin(b * Math.PI) * 0.042 * (1 - b);
+        const wobble = Math.sin(b * Math.PI) * 0.08 * (1 - b);
+        st.pos.set(chip.to[0], targetY + hop, chip.to[2]);
+        st.rotY += delta * 0.9 * st.spinDir * (1 - b);
+        mesh.position.copy(st.pos);
+        mesh.rotation.set(wobble, st.rotY, wobble * 0.5 * st.spinDir);
+        mesh.scale.setScalar(1);
+
+        if (b >= 1) {
+          st.pos.set(chip.to[0], targetY, chip.to[2]);
+          mesh.position.copy(st.pos);
+          mesh.rotation.set(0, st.rotY, 0);
           st.settled = true;
         }
-      } else {
-        st.rot.x += st.angVel.x * dt;
-        st.rot.y += st.angVel.y * dt;
-        st.rot.z += st.angVel.z * dt;
       }
-
-      mesh.position.copy(st.pos);
-      mesh.rotation.copy(st.rot);
       return;
     }
 
-    // 2. Smooth physical sweep across the green felt (to center Pot OR to Winner)
+    // 2. Smooth physical sweep across the green felt (to center Pot OR to Winner's stack)
     if (chip.phase === 'slide_to_pot' || chip.phase === 'slide_to_winner') {
       mesh.visible = true;
-      if (now < st.slideStartAt || st.settled) return;
+      if (now < st.startAt || st.settled) return;
 
-      const durationMs = chip.phase === 'slide_to_winner' ? 560 : 420;
-      const t = Math.min(1, (now - st.slideStartAt) / durationMs);
-      // Smooth ease-in-out cubic glide across the felt with tiny lift
+      const durationMs = chip.phase === 'slide_to_winner' ? 580 : 420;
+      const t = Math.min(1, (now - st.startAt) / durationMs);
       const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-      st.pos.x = THREE.MathUtils.lerp(st.slideFrom.x, chip.to[0], ease);
-      st.pos.z = THREE.MathUtils.lerp(st.slideFrom.z, chip.to[2], ease);
-      const lift = Math.sin(t * Math.PI) * (chip.phase === 'slide_to_winner' ? 0.28 : 0.08);
+      st.pos.x = THREE.MathUtils.lerp(st.fromPos.x, chip.to[0], ease);
+      st.pos.z = THREE.MathUtils.lerp(st.fromPos.z, chip.to[2], ease);
+      const lift = Math.sin(t * Math.PI) * (chip.phase === 'slide_to_winner' ? 0.24 : 0.07);
       st.pos.y = Math.max(
         FELT_FLOOR_Y,
-        THREE.MathUtils.lerp(st.slideFrom.y, chip.to[1], ease) + lift
+        THREE.MathUtils.lerp(st.fromPos.y, chip.to[1], ease) + lift
       );
-      st.rot.set(0, st.rot.y + delta * 3.5, 0);
+      st.rotY += delta * 3.0 * st.spinDir;
 
       mesh.position.copy(st.pos);
-      mesh.rotation.copy(st.rot);
+      mesh.rotation.set(0, st.rotY, 0);
+
+      // Gentle fade-shrink right at the end when merging into the winner's chip bank
+      if (chip.phase === 'slide_to_winner' && t > 0.82) {
+        const mergeScale = Math.max(0.15, 1 - ((t - 0.82) / 0.18) * 0.85);
+        mesh.scale.setScalar(mergeScale);
+      } else {
+        mesh.scale.setScalar(1);
+      }
 
       if (t >= 1) {
         st.settled = true;
@@ -185,7 +200,7 @@ function PhysicalTableChip({
   });
 
   return (
-    <group ref={groupRef} visible={false}>
+    <group ref={groupRef}>
       <mesh geometry={geo} castShadow>
         <meshStandardMaterial color={chip.color} roughness={0.55} />
       </mesh>

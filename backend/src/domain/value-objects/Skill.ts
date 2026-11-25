@@ -46,7 +46,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
     miniGameType: 'TIMING_BAR',
     masteryKey: 'sleightOfHand',
     expOnSuccess: 40,
-    expOnFail: 10,
+    expOnFail: 15,
   },
   EAGLE_EYE: {
     type: 'EAGLE_EYE',
@@ -55,7 +55,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
     miniGameType: 'BALANCE_CIRCLE',
     masteryKey: 'eagleEye',
     expOnSuccess: 35,
-    expOnFail: 10,
+    expOnFail: 15,
   },
   PRESSURE_AURA: {
     type: 'PRESSURE_AURA',
@@ -64,7 +64,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
     miniGameType: 'RHYTHM_TAP',
     masteryKey: 'pressureAura',
     expOnSuccess: 35,
-    expOnFail: 10,
+    expOnFail: 15,
     requiresTarget: true,
   },
   VIA_SIPHON: {
@@ -74,7 +74,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
     miniGameType: 'TIMING_BAR',
     masteryKey: 'viaSiphon',
     expOnSuccess: 35,
-    expOnFail: 10,
+    expOnFail: 15,
     requiresTarget: true,
   },
   TIME_FREEZE: {
@@ -84,7 +84,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
     miniGameType: 'BALANCE_CIRCLE',
     masteryKey: 'timeFreeze',
     expOnSuccess: 35,
-    expOnFail: 10,
+    expOnFail: 15,
   },
   POKER_FACE: {
     type: 'POKER_FACE',
@@ -93,7 +93,7 @@ export const SKILL_DEFINITIONS: Record<SkillType, SkillDefinition> = {
     miniGameType: 'RHYTHM_TAP',
     masteryKey: 'pokerFace',
     expOnSuccess: 35,
-    expOnFail: 10,
+    expOnFail: 15,
   },
 };
 

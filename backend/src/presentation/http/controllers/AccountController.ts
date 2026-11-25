@@ -74,14 +74,16 @@ export class AccountController {
   };
 
   /**
-   * Anti-cheat double-spend guard: blocks chip-mutating Lobby transactions while seated in an active match.
+   * Anti-cheat double-spend guard: blocks chip-mutating Lobby transactions while actively seated & connected in a live match.
    */
   private async isSeatedInActiveMatch(accountId: string): Promise<boolean> {
     const rooms = await this.roomRepo.findAll();
     return rooms.some(
       (r) =>
         r.status === 'PLAYING' &&
-        r.players.some((p) => p.accountId === accountId && !p.eliminated)
+        r.players.some(
+          (p) => p.accountId === accountId && !p.eliminated && p.socketId !== null
+        )
     );
   }
 
@@ -354,16 +356,24 @@ export class AccountController {
         return;
       }
 
+      const prevEquipped = new Set(account.equippedSkills ?? []);
+      const sanitizedLoadout: SkillType[] = [];
+
       for (const s of uniqueValid) {
         if ((account.skillInventory[s] ?? 0) <= 0) {
-          res.status(400).json({
-            error: `Bạn đã hết lượt của lá phép ${s}. Hãy mua thêm trong Tiệm Phép!`,
-          });
-          return;
+          if (!prevEquipped.has(s)) {
+            res.status(400).json({
+              error: `Bạn đã hết lượt của lá phép ${s}. Hãy mua thêm trong Tiệm Phép!`,
+            });
+            return;
+          }
+          // Silently drop stale 0-charge skills from previous match so unequipping other skills never fails
+          continue;
         }
+        sanitizedLoadout.push(s);
       }
 
-      account.equippedSkills = uniqueValid;
+      account.equippedSkills = sanitizedLoadout;
       const updated = await this.accountRepo.update(account);
       res.status(200).json({ account: toPublicAccount(updated) });
     } catch (err) {

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { createDefaultSkillMastery } from '../../domain/entities/Account';
+import { createDefaultSkillMastery, normalizeSkillMastery } from '../../domain/entities/Account';
 import {
   addVia,
   INITIAL_TIME_BANK_SECONDS,
@@ -60,9 +60,11 @@ export class StartMatchUseCase {
         player.itemsState = createInitialItemsState();
 
         // Consume 1 charge from each equipped skill in the player's shop inventory (max 3)
+        // and preserve persistent Account skillMastery EXP/level across matches!
         if (!player.isBot) {
           const acc = await this.accountRepo.findById(player.accountId);
           if (acc) {
+            player.skillMastery = normalizeSkillMastery(acc.skillMastery);
             const loadedSkills: typeof player.equippedSkills = [];
             for (const skill of (acc.equippedSkills ?? []).slice(0, 3)) {
               if ((acc.skillInventory[skill] ?? 0) > 0) {
@@ -71,6 +73,10 @@ export class StartMatchUseCase {
               }
             }
             player.equippedSkills = loadedSkills;
+            // Automatically unequip skills that just reached 0 remaining charges so Shop loadout stays clean
+            acc.equippedSkills = (acc.equippedSkills ?? []).filter(
+              (s) => (acc.skillInventory[s] ?? 0) > 0
+            );
             await this.accountRepo.update(acc);
           } else {
             player.equippedSkills = [];
@@ -181,7 +187,32 @@ export class StartMatchUseCase {
         }
       }
 
-      if (player.chips <= 0) {
+      // Auto-rebuy in non-online (STANDARD) mode: busted bots & players automatically bring in up to room.maxBuyIn from outside reserve
+      const hasLeftRoom = !player.isBot && player.socketId === null && player.eliminated;
+      if (room.mode === 'STANDARD' && player.chips <= 0 && !hasLeftRoom) {
+        if (player.isBot) {
+          player.chips = room.maxBuyIn;
+          player.lastSyncedChips = player.chips;
+          appendRoomLog(
+            room,
+            `${player.displayName} hết chip, tự động mang thêm ${player.chips.toLocaleString()} chip vào bàn.`
+          );
+        } else {
+          const acc = await this.accountRepo.findById(player.accountId);
+          const available = acc?.chips ?? 0;
+          if (available > 0) {
+            const rebuyAmount = Math.min(available, room.maxBuyIn);
+            player.chips = rebuyAmount;
+            player.lastSyncedChips = rebuyAmount;
+            appendRoomLog(
+              room,
+              `${player.displayName} hết chip, tự động mang thêm ${rebuyAmount.toLocaleString()} chip từ ngoài phòng vào bàn.`
+            );
+          }
+        }
+      }
+
+      if (hasLeftRoom || player.chips <= 0) {
         player.eliminated = true;
       } else {
         // Every new hand restores full 3-minute (180s) hand time bank!

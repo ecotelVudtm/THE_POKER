@@ -1,7 +1,29 @@
-import { useState } from 'react';
+import { CSSProperties, useEffect, useRef, useState } from 'react';
 import { GamePhase, PublicPlayerView, SkillMastery, SkillType } from '../../types/game';
 import { SKILL_CATALOG_BY_TYPE } from '../../utils/skillCatalog';
+import { consumeViaSource, recordViaSourceFromElement } from '../../utils/viaOrbSource';
 import { VoxelIcon3D } from '../VoxelIcon3D';
+import { CardLabel } from '../PixelSuitIcon';
+
+interface ViaOrbParticle {
+  id: number;
+  sx: number;
+  sy: number;
+  bx: number;
+  by: number;
+  mx: number;
+  my: number;
+  dx: number;
+  dy: number;
+  delayMs: number;
+  sizePx: number;
+  tone: 'jade' | 'via';
+}
+
+interface ViaGainPopup {
+  id: number;
+  amount: number;
+}
 
 export interface SkillActionBarProps {
   me: PublicPlayerView;
@@ -28,6 +50,117 @@ export function SkillActionBar({
   onTriggerSkill,
 }: SkillActionBarProps) {
   const [pickingSkill, setPickingSkill] = useState<SkillType | null>(null);
+  const [displayedVia, setDisplayedVia] = useState<number>(me.via);
+  const [orbs, setOrbs] = useState<ViaOrbParticle[]>([]);
+  const [gainPopups, setGainPopups] = useState<ViaGainPopup[]>([]);
+  const [isSurging, setIsSurging] = useState<boolean>(false);
+
+  const prevViaRef = useRef<number>(me.via);
+  const prevPhaseRef = useRef<GamePhase>(phase);
+  const viaTrackRef = useRef<HTMLDivElement>(null);
+  const orbIdRef = useRef<number>(1);
+  const popupIdRef = useRef<number>(1);
+
+  const hasNoodles =
+    me.ownedItems.includes('INSTANT_NOODLES') && (me.itemsState.noodleBitesLeft ?? 0) > 0;
+  const maxVia = hasNoodles ? 120 : 100;
+
+  useEffect(() => {
+    const prev = prevViaRef.current;
+    const next = me.via;
+    const prevPhase = prevPhaseRef.current;
+    prevViaRef.current = next;
+    prevPhaseRef.current = phase;
+
+    if (next > prev) {
+      const delta = next - prev;
+      const orbCount = Math.min(14, Math.max(6, Math.round(delta / 2.5) + 4));
+      const targetProgress = Math.min(1, next / maxVia);
+
+      // Compute exact viewport coordinates of the filling tip on the Vía bar
+      const trackRect = viaTrackRef.current?.getBoundingClientRect();
+      const targetX = trackRect
+        ? trackRect.left + trackRect.width * targetProgress
+        : window.innerWidth * 0.5;
+      const targetY = trackRect
+        ? trackRect.top + trackRect.height / 2
+        : window.innerHeight - 36;
+
+      // Contextual fallback origin if gain came from table event rather than a direct button click:
+      // - SHOWDOWN win / 3-win streak -> center winning pot
+      // - Betting round advance (FLOP/TURN/RIVER) -> center community board
+      // - VIA_SIPHON -> upper opponent seats area
+      const phaseAdvanced = prevPhase !== phase;
+      const fallbackOrigin =
+        phase === 'SHOWDOWN'
+          ? { x: window.innerWidth * 0.5, y: window.innerHeight * 0.44 }
+          : phaseAdvanced
+            ? { x: window.innerWidth * 0.5, y: window.innerHeight * 0.36 }
+            : { x: window.innerWidth * 0.5, y: window.innerHeight * 0.24 };
+
+      // Prefer the exact clicked button (BỎ BÀI, TỐ, ALL-IN, HÚT VÍA) when it triggered this gain!
+      const source = consumeViaSource(fallbackOrigin, phase === 'SHOWDOWN' ? 900 : 1800);
+
+      const batch: ViaOrbParticle[] = Array.from({ length: orbCount }, (_, idx) => {
+        const spread = (idx / Math.max(1, orbCount - 1)) - 0.5; // -0.5 .. +0.5
+        const startJitterX = Math.round(spread * 28);
+        const startJitterY = Math.round(((idx % 3) - 1) * 10);
+        const sx = source.x + startJitterX;
+        const sy = source.y + startJitterY;
+        const dx = Math.round(targetX - sx + ((idx % 3) - 1) * 8);
+        const dy = Math.round(targetY - sy);
+        // Gentle radial burst out of the button + smooth high arc flying toward the Vía bar
+        const bx = Math.round(spread * 48 + Math.sign(dx || 1) * 10);
+        const by = Math.round(-22 - Math.abs(spread) * 26);
+        const arcLift = Math.min(135, Math.max(55, Math.abs(dx) * 0.24 + 48));
+        const mx = Math.round(dx * 0.52 + spread * 34);
+        const my = Math.round(dy * 0.45 - arcLift);
+
+        return {
+          id: orbIdRef.current++,
+          sx,
+          sy,
+          bx,
+          by,
+          mx,
+          my,
+          dx,
+          dy,
+          delayMs: idx * 30,
+          sizePx: idx % 3 === 0 ? 8 : 6,
+          tone: idx % 3 === 0 ? 'via' : 'jade',
+        };
+      });
+
+      const batchIds = new Set(batch.map((o) => o.id));
+      setOrbs((existing) => [...existing.slice(-24), ...batch]);
+
+      // Right as the flying green dots arrive at the Vía bar -> smoothly surge & grow the bar!
+      let surgeEndTimer: number | undefined;
+      const fillTimer = window.setTimeout(() => {
+        setDisplayedVia(next);
+        setIsSurging(true);
+        surgeEndTimer = window.setTimeout(() => setIsSurging(false), 460);
+        const popId = popupIdRef.current++;
+        setGainPopups((existing) => [...existing.slice(-3), { id: popId, amount: delta }]);
+        window.setTimeout(() => {
+          setGainPopups((existing) => existing.filter((p) => p.id !== popId));
+        }, 980);
+      }, 340);
+
+      const cleanupTimer = window.setTimeout(() => {
+        setOrbs((existing) => existing.filter((o) => !batchIds.has(o.id)));
+      }, 1050);
+
+      return () => {
+        window.clearTimeout(fillTimer);
+        window.clearTimeout(cleanupTimer);
+        if (surgeEndTimer !== undefined) window.clearTimeout(surgeEndTimer);
+      };
+    } else {
+      setDisplayedVia(next);
+    }
+  }, [maxVia, me.via, phase]);
 
   const inActiveHand =
     phase !== 'WAITING' &&
@@ -45,7 +178,11 @@ export function SkillActionBar({
 
   const spellCards = equipped.map((skillType, idx) => {
     const def = SKILL_CATALOG_BY_TYPE[skillType];
-    const level = mastery[def.masteryKey]?.level ?? 1;
+    const progress = mastery[def.masteryKey];
+    const level = progress?.level ?? 1;
+    const exp = progress?.exp ?? 0;
+    const nextExp = level * 100;
+    const expPct = level >= 10 ? 100 : Math.min(100, Math.round((exp / nextExp) * 100));
     const disabled =
       !inActiveHand ||
       me.via < def.viaCost ||
@@ -56,6 +193,9 @@ export function SkillActionBar({
     return {
       ...def,
       level,
+      exp,
+      nextExp,
+      expPct,
       disabled,
       tiltCls: tilts[idx] ?? 'rotate-0',
     };
@@ -103,10 +243,14 @@ export function SkillActionBar({
                   setPickingSkill(null);
                   onTriggerSkill('SLEIGHT_OF_HAND', { cardIndex: idx });
                 }}
-                className="voxel-btn border-2 border-border-gold bg-accent-gold px-2.5 py-1 font-mono text-xs font-extrabold text-content-inverse disabled:cursor-not-allowed disabled:border-status-danger/60 disabled:bg-surface-canvas disabled:text-status-danger disabled:opacity-60"
+                className="voxel-btn inline-flex items-center gap-1 border-2 border-border-gold bg-content-primary px-2.5 py-1 font-mono text-xs font-extrabold text-content-inverse disabled:cursor-not-allowed disabled:border-status-danger/60 disabled:bg-surface-canvas disabled:text-status-danger disabled:opacity-60"
               >
-                {me.holeCards[idx]?.code ?? `#${idx + 1}`}
-                {isExposed ? ' (ĐÃ LỘ)' : ''}
+                {me.holeCards[idx] ? (
+                  <CardLabel card={me.holeCards[idx]!} iconSize={12} darkBg={false} />
+                ) : (
+                  <span>#{idx + 1}</span>
+                )}
+                {isExposed ? <span className="text-[10px] text-status-danger">(ĐÃ LỘ)</span> : null}
               </button>
             );
           })}
@@ -123,8 +267,11 @@ export function SkillActionBar({
             <button
               key={opp.accountId}
               type="button"
-              onClick={() => {
+              onClick={(e) => {
                 const selectedType = pickingTargetDef.type;
+                if (selectedType === 'VIA_SIPHON') {
+                  recordViaSourceFromElement(e.currentTarget, 'siphon');
+                }
                 setPickingSkill(null);
                 onTriggerSkill(selectedType, { targetAccountId: opp.accountId });
               }}
@@ -147,7 +294,7 @@ export function SkillActionBar({
                 type="button"
                 disabled={card.disabled}
                 onClick={() => handleSkillClick(card.type)}
-                title={`${card.fullName} — ${card.shortDesc}`}
+                title={`${card.fullName} (LV.${card.level} · ${card.level >= 10 ? 'MAX' : `${card.exp}/${card.nextExp} EXP`}) — ${card.shortDesc}`}
                 className={`group relative flex h-[150px] w-[114px] flex-col justify-between border-2 p-2.5 text-center shadow-[5px_5px_0_rgba(0,0,0,0.85)] transition-all duration-150 ${
                   card.borderCls
                 } ${card.tiltCls} ${
@@ -166,14 +313,24 @@ export function SkillActionBar({
                   <span className={`px-1.5 py-0.5 ${card.costBgCls}`}>{card.viaCost}</span>
                 </div>
 
-                {/* Center Ornate Inner Spell Art Frame with 3D Voxel Emblem */}
+                {/* Simple Green EXP Progress Bar directly on the Spell Card */}
+                <div className="mt-1 h-1 w-full bg-surface-canvas">
+                  <div
+                    className="h-full bg-accent-jade transition-all duration-300"
+                    style={{ width: `${card.expPct}%` }}
+                  />
+                </div>
+
+                {/* Center Spell Card Artwork Image */}
                 <div
-                  className={`my-1.5 flex flex-1 flex-col items-center justify-center border-2 ${card.innerFrameCls}`}
+                  className={`relative my-1.5 flex-1 overflow-hidden border-2 ${card.innerFrameCls}`}
                 >
-                  <VoxelIcon3D kind={card.iconKind} size={30} />
-                  <span className="mt-1 font-mono text-[9px] font-bold tracking-widest text-content-muted">
-                    {card.subtitle}
-                  </span>
+                  <img
+                    src={card.artImage}
+                    alt={card.fullName}
+                    draggable={false}
+                    className="h-full w-full object-cover"
+                  />
                 </div>
 
                 {/* Bottom Spell Nameplate */}
@@ -194,24 +351,85 @@ export function SkillActionBar({
 
       {/* Raised Chunky Vía Energy Bar sitting IN FRONT of the bottom edge of the Spell Cards */}
       {(() => {
-        const hasNoodles =
-          me.ownedItems.includes('INSTANT_NOODLES') && (me.itemsState.noodleBitesLeft ?? 0) > 0;
-        const maxVia = hasNoodles ? 120 : 100;
+        const isFullPurple = displayedVia >= 100;
+        const fillPercent = Math.min(100, (displayedVia / maxVia) * 100);
         return (
-          <div className="voxel-panel-gold pointer-events-auto relative z-20 flex w-full max-w-[376px] items-center gap-3 px-3.5 py-2">
-            <VoxelIcon3D kind="via" size={18} />
-            <span className="font-mono text-xs font-extrabold tracking-wider text-accent-via">
-              VÍA {me.via}/{maxVia}
-            </span>
-            <div className="relative h-3 flex-1 border-2 border-border-subtle bg-surface-elevated">
+          <div className="relative z-20 flex w-full max-w-[376px] justify-center">
+            {/* Viewport-wide overlay so green Vía dots fly straight from the EXACT source button (e.g., BỎ BÀI / TỐ / ALL-IN) into the Vía bar! */}
+            {orbs.length > 0 && (
+              <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+                {orbs.map((orb) => (
+                  <span
+                    key={orb.id}
+                    className={`via-orb-particle fixed block border border-content-primary/80 ${
+                      orb.tone === 'jade' ? 'bg-accent-jade' : 'bg-accent-via'
+                    }`}
+                    style={
+                      {
+                        left: `${orb.sx}px`,
+                        top: `${orb.sy}px`,
+                        width: orb.sizePx,
+                        height: orb.sizePx,
+                        animationDelay: `${orb.delayMs}ms`,
+                        '--bx': `${orb.bx}px`,
+                        '--by': `${orb.by}px`,
+                        '--mx': `${orb.mx}px`,
+                        '--my': `${orb.my}px`,
+                        '--dx': `${orb.dx}px`,
+                        '--dy': `${orb.dy}px`,
+                      } as CSSProperties
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Floating +N VÍA gain popups */}
+            {gainPopups.map((pop) => (
+              <span
+                key={pop.id}
+                className="via-gain-float pointer-events-none absolute -top-6 right-3 z-40 font-mono text-xs font-extrabold text-accent-jade"
+                style={{ textShadow: '2px 2px 0 rgba(0,0,0,0.9)' }}
+              >
+                +{pop.amount} VÍA
+              </span>
+            ))}
+
+            <div
+              className={`voxel-panel-gold pointer-events-auto relative flex w-full items-center gap-3 px-3.5 py-2 transition-colors duration-300 ${
+                isSurging ? 'via-bar-surge' : ''
+              } ${isFullPurple ? 'border-accent-purple via-full-purple' : ''}`}
+            >
+              <VoxelIcon3D kind="via" size={18} />
+              <span
+                className={`font-mono text-xs font-extrabold tracking-wider transition-colors duration-300 ${
+                  isFullPurple ? 'text-accent-purple' : 'text-accent-via'
+                }`}
+              >
+                VÍA {displayedVia}/{maxVia}
+              </span>
               <div
-                className="h-full bg-accent-via transition-all duration-300"
-                style={{ width: `${Math.min(100, (me.via / maxVia) * 100)}%` }}
-              />
-              {/* Crisp pixel gauge ticks every 25% */}
-              <span className="pointer-events-none absolute inset-y-0 left-1/4 w-[1px] bg-surface-canvas/55" />
-              <span className="pointer-events-none absolute inset-y-0 left-1/2 w-[1px] bg-surface-canvas/55" />
-              <span className="pointer-events-none absolute inset-y-0 left-3/4 w-[1px] bg-surface-canvas/55" />
+                ref={viaTrackRef}
+                className={`relative h-3.5 flex-1 overflow-hidden border-2 bg-surface-elevated transition-colors duration-300 ${
+                  isFullPurple ? 'border-accent-purple' : 'border-border-subtle'
+                }`}
+              >
+                <div
+                  className={`relative h-full transition-all duration-500 ease-out ${
+                    isFullPurple ? 'bg-accent-purple' : 'bg-accent-via'
+                  }`}
+                  style={{ width: `${fillPercent}%` }}
+                >
+                  {/* Crisp glowing leading pixel edge */}
+                  {displayedVia > 0 && (
+                    <span className="absolute inset-y-0 right-0 w-1 bg-content-primary/80" />
+                  )}
+                </div>
+                {/* Crisp pixel gauge ticks every 25% */}
+                <span className="pointer-events-none absolute inset-y-0 left-1/4 w-[1px] bg-surface-canvas/55" />
+                <span className="pointer-events-none absolute inset-y-0 left-1/2 w-[1px] bg-surface-canvas/55" />
+                <span className="pointer-events-none absolute inset-y-0 left-3/4 w-[1px] bg-surface-canvas/55" />
+              </div>
             </div>
           </div>
         );

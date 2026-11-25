@@ -27,6 +27,7 @@ const config: Config = {
           via: 'rgb(var(--accent-via) / <alpha-value>)',
           jade: 'rgb(var(--accent-jade) / <alpha-value>)',
           amber: 'rgb(var(--accent-amber) / <alpha-value>)',
+          purple: 'rgb(var(--accent-purple) / <alpha-value>)',
         },
         status: {
           success: 'rgb(var(--status-success) / <alpha-value>)',
